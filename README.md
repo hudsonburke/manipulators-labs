@@ -6,7 +6,7 @@ You can use GitHub Codespaces or a local setup. Both use `uv` for Python depende
 
 ### GitHub Codespaces
 
-The easiest way to get started is to use GitHub Codespaces. The repository's dev container installs `uv`, runs `uv sync`, and starts URSim as a Compose service. After the Codespace starts, open the forwarded port `6080` to use the URSim browser interface.
+The easiest way to get started is to use GitHub Codespaces. The repository's dev container installs `uv`, runs `uv sync`, and starts URSim as a Compose service. Codespaces labels port `6080` as **URSim noVNC** and may open it automatically. If the initial page is a directory listing, append `/vnc.html` to the forwarded URL.
 
 Python commands run through `uv`:
 

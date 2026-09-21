@@ -5,6 +5,26 @@
   "workspaceFolder": "/workspace",
   "remoteUser": "vscode",
   "forwardPorts": [6080, 5900, 30004, 30002, 29999],
+  "portsAttributes": {
+    "6080": {
+      "label": "URSim noVNC (open /vnc.html)",
+      "protocol": "http",
+      "onAutoForward": "openBrowser",
+      "visibility": "private"
+    },
+    "30004": {
+      "label": "URSim RTDE",
+      "visibility": "private"
+    },
+    "30002": {
+      "label": "URSim primary interface",
+      "visibility": "private"
+    },
+    "29999": {
+      "label": "URSim dashboard",
+      "visibility": "private"
+    }
+  },
   "postCreateCommand": "uv sync",
   "customizations": {
     "vscode": {
