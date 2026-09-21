@@ -1,0 +1,11 @@
+[project]
+name = "labs"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pyqt5>=5.15.11",
+    "roboticstoolbox-python[all]>=1.4.3",
+    "ur-rtde>=1.6.5",
+]
