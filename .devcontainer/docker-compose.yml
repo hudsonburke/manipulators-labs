@@ -10,6 +10,9 @@ services:
     command: sleep infinity
     environment:
       URSIM_HOST: ursim
+    ports:
+      - "52000:52000" # Swift web interface
+      - "53000:53000" # Swift websocket interface
     depends_on:
       - ursim
 
