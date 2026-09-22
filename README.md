@@ -14,6 +14,26 @@ Python commands run through `uv`:
 uv run python lab2/urdf_demo.py
 ```
 
+To use the RTDE demo, open the **Ports** panel and select the port labeled **URSim noVNC**. Open `/vnc.html` on that forwarded URL, then make sure the simulator is powered on and its safety status is green. From the Codespace terminal, run:
+
+```bash
+uv run python lab2/rtde_demo.py
+```
+
+The demo reads the joint positions and TCP pose without moving the robot. To run the example joint move explicitly:
+
+```bash
+uv run python lab2/rtde_demo.py --move
+```
+
+Inside Codespaces, the demo connects to the Compose service named `ursim`.
+When running Python directly on a local machine, it defaults to `localhost`.
+Override the address with `URSIM_HOST` or `--host` if needed.
+
+#### Creating a Codespace
+
+Open the repository on GitHub, choose **Code → Codespaces → Create codespace on main**, and wait for the container build to finish.
+
 ### Local Setup
 
 #### WSL2
@@ -25,7 +45,7 @@ If you are on Windows, you'll need to use WSL2 (Windows Subsystem for Linux).
 
 You'll need git for either branch you decide to use unless you just download the zip file of the repository. You can install git from
 <https://git-scm.com/install/>
-On windows, this will also install git bash, which is a terminal that supports unix commands
+On Windows, this will also install git bash, which is a terminal that supports unix commands
 
 ```bash
 git clone <>
