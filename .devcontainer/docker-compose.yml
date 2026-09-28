@@ -14,7 +14,7 @@ services:
       - "52000:52000" # Swift web interface
       - "53000:53000" # Swift websocket interface
     depends_on:
-      - ursim
+      - ursim_cb3
 
   # ursim:
   #   image: universalrobots/ursim_e-series:latest

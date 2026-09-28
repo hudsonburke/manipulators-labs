@@ -20,7 +20,8 @@ To run a virtual UR5 robot, we are using the URSim Docker image.
 You don't need to worry about the details of this, but think of it like a lightweight virtual machine that runs the robot simulator. 
 The Codespace automatically starts URSim with Docker Compose, so you don't need to do anything else.
 
-To open the simulator, open the **Ports** panel and select the port labeled `6080`. Open `/vnc.html` on that forwarded URL, then make sure the simulator is powered on and its safety status is green.
+To open the simulator, open the **Ports** panel and select the port labeled `6080`. 
+Open `/vnc.html` on that forwarded URL, then make sure the simulator is powered on and its safety status is green.
 
 [URSim-setup]
 
