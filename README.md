@@ -13,13 +13,14 @@ Sign up for a GitHub account if you don't have one. You can sign up for it with 
 
 #### Creating a Codespace
 
-
 ![Code button](lab2/assets/repo-code-button.png)
 Open the repository on GitHub, choose **Code → Codespaces → Create codespace on main**, and wait for the container build to finish.
 
-The repository's dev container installs `uv`, runs `uv sync`, and starts URSim as a Compose service. Codespaces labels port `6080` as **URSim noVNC** and may open it automatically. If the initial page is a directory listing, append `/vnc.html` to the forwarded URL.
+To run a virtual UR5 robot, we are using the URSim Docker image. 
+You don't need to worry about the details of this, but think of it like a lightweight virtual machine that runs the robot simulator. 
+The Codespace automatically starts URSim with Docker Compose, so you don't need to do anything else.
 
-To use the RTDE demo, open the **Ports** panel and select the port labeled `6080`. Open `/vnc.html` on that forwarded URL, then make sure the simulator is powered on and its safety status is green.
+To open the simulator, open the **Ports** panel and select the port labeled `6080`. Open `/vnc.html` on that forwarded URL, then make sure the simulator is powered on and its safety status is green.
 
 [URSim-setup]
 
@@ -44,8 +45,6 @@ On Windows, this will also install git bash, which is a terminal that supports u
 ```sh
 git clone https://github.com/hudsonburke/manipulators-labs.git
 ```
-
-URSim is available at <http://localhost:6080/vnc.html?host=localhost&port=6080>.
 
 #### Docker
 

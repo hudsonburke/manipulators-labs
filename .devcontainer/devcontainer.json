@@ -31,17 +31,18 @@
     "29999": {
       "label": "URSim dashboard",
       "visibility": "private"
-    },
-    "52000": {
-      "label": "Swift visualizer",
-      "protocol": "http",
-      "onAutoForward": "openBrowser",
-      "visibility": "private"
-    },
-    "53000": {
-      "label": "Swift websocket",
-      "visibility": "private"
     }
+    //,
+    // "52000": {
+    //   "label": "Swift visualizer",
+    //   "protocol": "http",
+    //   "onAutoForward": "openBrowser",
+    //   "visibility": "private"
+    // },
+    // "53000": {
+    //   "label": "Swift websocket",
+    //   "visibility": "private"
+    // }
   },
   "postCreateCommand": "uv sync",
   "customizations": {
