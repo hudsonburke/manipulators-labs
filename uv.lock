@@ -411,6 +411,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pyqt5" },
     { name = "roboticstoolbox-python", extra = ["all"] },
+    { name = "spatialmath-python" },
     { name = "ur-rtde" },
 ]
 
@@ -419,6 +420,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.5.3" },
     { name = "pyqt5", specifier = ">=5.15.11" },
     { name = "roboticstoolbox-python", extras = ["all"], specifier = ">=1.4.3" },
+    { name = "spatialmath-python", specifier = ">=1.1.18" },
     { name = "ur-rtde", specifier = ">=1.6.5" },
 ]
 

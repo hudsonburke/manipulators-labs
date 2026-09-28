@@ -8,5 +8,6 @@ dependencies = [
     "numpy>=2.5.3",
     "pyqt5>=5.15.11",
     "roboticstoolbox-python[all]>=1.4.3",
+    "spatialmath-python>=1.1.18",
     "ur-rtde>=1.6.5",
 ]

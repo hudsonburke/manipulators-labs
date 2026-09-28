@@ -4,7 +4,15 @@
   "service": "lab-env",
   "workspaceFolder": "/workspace",
   "remoteUser": "vscode",
-  "forwardPorts": [6080, 5900, 30004, 30002, 29999, 52000, 53000],
+  "forwardPorts": [
+    6080,
+    5900,
+    30004,
+    30002,
+    29999,
+    52000,
+    53000
+  ],
   "portsAttributes": {
     "6080": {
       "label": "URSim noVNC (open /vnc.html)",
@@ -27,6 +35,7 @@
     "52000": {
       "label": "Swift visualizer",
       "protocol": "http",
+      "onAutoForward": "openBrowser",
       "visibility": "private"
     },
     "53000": {

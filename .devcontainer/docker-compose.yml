@@ -16,8 +16,18 @@ services:
     depends_on:
       - ursim
 
-  ursim:
-    image: universalrobots/ursim_e-series:latest
+  # ursim:
+  #   image: universalrobots/ursim_e-series:latest
+  #   environment:
+  #     ROBOT_MODEL: UR5
+  #   ports:
+  #     - "6080:6080" # URSim browser interface
+  #     - "5900:5900" # URSim VNC interface
+  #     - "30004:30004" # RTDE port
+  #     - "30002:30002" # Primary/Secondary client interface
+  #     - "29999:29999" # Dashboard server
+  ursim_cb3:
+    image: universalrobots/ursim_cb3:latest
     environment:
       ROBOT_MODEL: UR5
     ports:
