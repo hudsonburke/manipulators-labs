@@ -52,7 +52,7 @@ Clicking `Connect` will open the interface
 At this point, you can hit ok
 
 ![](assets/main-menu.png)
-
+Then press the `Program Robot` button and navigate to the Move tab
 ![](assets/move-tab.png)
 
 From here you should be able to manually move the robot arm around.
