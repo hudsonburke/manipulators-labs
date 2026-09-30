@@ -9,7 +9,7 @@ By the end of the lab, you should be able to:
 - distinguish a Cartesian tool pose from a six-joint robot configuration;
 - use `moveL` to command a Cartesian path and `moveJ` to command a joint-space motion;
 - describe forward kinematics as $T = f(q)$ and IK as finding a $q$ for a requested $T$;
-- explain why an IK solution may depend on its initial guess and why matching endpoint poses does not imply matching paths.
+- explain why an IK solution may not be unique.
 
 ## Tool references
 
@@ -39,7 +39,7 @@ $$
 T_{\mathrm{base}}^{\mathrm{tool}} = f(q).
 $$
 
-A pose contains a three-dimensional position and a three-dimensional orientation. **Inverse kinematics** works in the other direction: given a desired pose \(T_d\), it searches for one or more configurations such that \(f(q) \approx T_d\). This is not generally a one-to-one mapping. A UR5 can often reach the same tool pose with different elbow, shoulder, or wrist configurations. Some poses are unreachable or near a singularity, and numerical solvers can return different valid solutions when started from different initial guesses.
+A pose contains a three-dimensional position and a three-dimensional orientation. **Inverse kinematics** works in the other direction: given a desired pose $T_d$, it searches for one or more configurations such that $f(q) \approx T_d$. This is not generally a one-to-one mapping. A UR5 can often reach the same tool pose with different elbow, shoulder, or wrist configurations. Some poses are unreachable or near a singularity, and numerical solvers can return different valid solutions when started from different initial guesses.
 
 URSim and `ur_rtde` represent a TCP pose as
 
@@ -102,10 +102,6 @@ uv run python lab2/task2.py
 
 Read the console output and inspect `task2_joint_q.csv` and `task2_ik_diagnostics.csv`. A small residual means the **Robotics Toolbox UR5 model** reaches the requested pose numerically. It does not guarantee that its joint angles exactly equal URSim's angles: the controller and toolbox may select different IK branches, and their robot/tool models need not be identical.
 
-### Required IK exploration
-
-`task2.py` uses the home configuration as its initial guess and then uses each solution as the next waypoint's guess. For one waypoint, change `INITIAL_GUESS` to a meaningfully different, reasonable joint configuration, run the script again, and compare the solution with the first run. Restore the sequential/home-seeded version before Task 3. In your report, explain whether the returned joint vector changed and whether both solutions still satisfy the desired pose.
-
 ## Task 3 — Test the IK joint configurations
 
 Task 3 reads the joint angles calculated in Task 2 from `task2_joint_q.csv`; it will refuse to run if that file is missing or has the wrong columns. It commands each row with `moveJ` and records the measured TCP pose and joint angles.
@@ -125,9 +121,10 @@ Submit the following completed files:
 - `report.md`
 - generated CSV files (`goals.csv`, `task1_joint_q.csv`, `task1_results.csv`, `task2_joint_q.csv`, `task2_ik_diagnostics.csv`, and `task3_results.csv`)
 
-Run the provided script from the `lab2` directory to create the archive:
+Run the provided script from the `lab2` directory to create the archive. You may need to move the csv files into the `lab2` directory first if you ran the scripts from the repository root. 
 
 ```sh
+cd lab2
 ./submit.sh
 ```
 

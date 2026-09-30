@@ -10,9 +10,7 @@ from rtde_receive import RTDEReceiveInterface as RTDEReceive
 from goals import GOALS, validate_goals
 
 URSIM_HOST = os.environ.get("URSIM_HOST", "localhost")
-HOME_Q = np.array(
-    [-np.pi / 2, -np.pi / 2, -np.pi / 2, -np.pi / 2, np.pi / 2, 0.0]
-)
+HOME_Q = np.array([-np.pi / 2, -np.pi / 2, -np.pi / 2, -np.pi / 2, np.pi / 2, 0.0])
 CARTESIAN_SPEED = 0.25  # m/s for moveL
 CARTESIAN_ACCELERATION = 0.5  # m/s^2 for moveL
 JOINT_SPEED = 0.5  # rad/s for the initial moveJ
@@ -44,6 +42,7 @@ def main() -> None:
     finally:
         controller.stopScript()
 
+    # Export the requested waypoints, actual TCP poses, and actual joint angles to CSV files for later analysis.
     pd.DataFrame(GOALS, columns=["x", "y", "z", "rx", "ry", "rz"]).to_csv(
         "goals.csv", index=False
     )
@@ -52,8 +51,20 @@ def main() -> None:
         columns=["base", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
     ).to_csv("task1_joint_q.csv", index=False)
 
-    results = pd.DataFrame(GOALS, columns=["target_x", "target_y", "target_z", "target_rx", "target_ry", "target_rz"])
-    results[["actual_x", "actual_y", "actual_z", "actual_rx", "actual_ry", "actual_rz"]] = actual_poses
+    results = pd.DataFrame(
+        GOALS,
+        columns=[
+            "target_x",
+            "target_y",
+            "target_z",
+            "target_rx",
+            "target_ry",
+            "target_rz",
+        ],
+    )
+    results[
+        ["actual_x", "actual_y", "actual_z", "actual_rx", "actual_ry", "actual_rz"]
+    ] = actual_poses
     results.to_csv("task1_results.csv", index=False)
 
 

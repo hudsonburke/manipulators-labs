@@ -8,12 +8,8 @@ from roboticstoolbox.models.DH import UR5
 from goals import GOALS, pose_to_se3, validate_goals
 
 JOINT_COLUMNS = ["base", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"]
-HOME_Q = np.array(
-    [-np.pi / 2, -np.pi / 2, -np.pi / 2, -np.pi / 2, np.pi / 2, 0.0]
-)
+HOME_Q = np.array([-np.pi / 2, -np.pi / 2, -np.pi / 2, -np.pi / 2, np.pi / 2, 0.0])
 
-# Change this temporarily for the required initial-guess exploration in the README.
-# Restore HOME_Q before generating the joint angles used by Task 3.
 INITIAL_GUESS = HOME_Q.copy()
 
 
