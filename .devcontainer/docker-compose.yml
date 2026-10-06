@@ -11,6 +11,7 @@ services:
     environment:
       URSIM_HOST: ursim_cb3
     ports:
+      - "8080:8080" # Lab 3 mjviser web interface
       - "52000:52000" # Swift web interface
       - "53000:53000" # Swift websocket interface
     depends_on:

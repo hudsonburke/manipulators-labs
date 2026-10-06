@@ -90,6 +90,9 @@ To run the code for Lab 2 Task 1, for example, in the virtual environment, you c
 uv run python lab2/task1.py
 ```
 
+Lab 3 uses a browser-based MuJoCo viewer on port `8080`. Its full setup and
+task instructions are in [`lab3/README.md`](lab3/README.md).
+
 #### Docker
 
 To run a virtual UR5 robot, we are using the [URSim Docker image](https://hub.docker.com/r/universalrobots/ursim_cb3).
