@@ -11,8 +11,8 @@ services:
     environment:
       URSIM_HOST: ursim_cb3
     ports:
-      - "52000:52000" # Swift web interface
-      - "53000:53000" # Swift websocket interface
+      - "52000:52000" # Swift HTTP interface
+      - "53000:53000" # Swift WebSocket interface
     depends_on:
       - ursim_cb3
 

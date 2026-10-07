@@ -90,6 +90,16 @@ To run the code for Lab 2 Task 1, for example, in the virtual environment, you c
 uv run python lab2/task1.py
 ```
 
+Lab 3 uses one Robotics Toolbox URDF UR5 model for kinematics, collision
+checking with spatialgeometry, and Swift browser playback. Swift serves HTTP
+on port `52000` and live updates on WebSocket port `53000`; forward both and
+keep both private in Codespaces. The first URDF load may download and cache
+robot-description assets; no MuJoCo or Menagerie assets are needed. Codespaces
+(Linux) is recommended for the collision backend's Coal wheels. Full setup,
+including secure WebSocket forwarding, and task instructions are in
+[`lab3/README.md`](lab3/README.md). Lab 2 continues to use URSim as described
+above.
+
 #### Docker
 
 To run a virtual UR5 robot, we are using the [URSim Docker image](https://hub.docker.com/r/universalrobots/ursim_cb3).

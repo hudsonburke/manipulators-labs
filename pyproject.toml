@@ -6,9 +6,13 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "numpy>=2.5.3",
+    "matplotlib>=3.10.7",
+    "ompl==2.0.1",
     "pandas>=3.0.6",
     "pyqt5>=5.15.11",
     "roboticstoolbox-python[all]>=1.4.3",
     "spatialmath-python>=1.1.18",
+    "spatialgeometry>=1.4.0",
+    "swift-sim==2.0.0",
     "ur-rtde>=1.6.5",
 ]
