@@ -10,7 +10,6 @@
     30004,
     30002,
     29999,
-    8080,
     52000,
     53000
   ],
@@ -33,10 +32,15 @@
       "label": "URSim dashboard",
       "visibility": "private"
     },
-    "8080": {
-      "label": "Lab 3 MuJoCo viewer",
+    "52000": {
+      "label": "Swift HTTP",
       "protocol": "http",
       "onAutoForward": "openBrowser",
+      "visibility": "private"
+    },
+    "53000": {
+      "label": "Swift WebSocket",
+      "protocol": "http",
       "visibility": "private"
     }
   },

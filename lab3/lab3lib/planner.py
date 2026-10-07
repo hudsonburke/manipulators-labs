@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from time import perf_counter
@@ -21,6 +22,7 @@ class PlanningResult:
     waypoints: NDArray[np.float64]
     raw_waypoints: NDArray[np.float64]
     tree_states: NDArray[np.float64]
+    closest_waypoints: NDArray[np.float64]
     planning_time: float
     simplification_time: float
     state_checks: int
@@ -82,18 +84,34 @@ class JointSpacePlanner:
     def _path_to_array(cls, path: og.PathGeometric) -> NDArray[np.float64]:
         return np.vstack([cls._state_to_array(state) for state in path.getStates()])
 
-    @classmethod
-    def _planner_states(cls, setup: og.SimpleSetup) -> NDArray[np.float64]:
+    def _planner_paths(
+        self, setup: og.SimpleSetup, start: NDArray[np.float64], goal: NDArray[np.float64]
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """Recover only start-reachable edges, never jump into the goal tree."""
         data = ob.PlannerData(setup.getSpaceInformation())
         setup.getPlannerData(data)
-        if data.numVertices() == 0:
-            return np.empty((0, 6), dtype=float)
-        return np.vstack(
-            [
-                cls._state_to_array(data.getVertex(index).getState())
-                for index in range(data.numVertices())
-            ]
-        )
+        if data.numVertices() == 0 or data.numStartVertices() == 0:
+            return np.empty((0, 6), dtype=float), start.reshape(1, -1).copy()
+        states = np.vstack([
+            self._state_to_array(data.getVertex(index).getState())
+            for index in range(data.numVertices())
+        ])
+        root = data.getStartIndex(0)
+        parents = {root: None}
+        queue = deque([root])
+        while queue:
+            vertex = queue.popleft()
+            for neighbor in data.getEdges(vertex):
+                if neighbor not in parents:
+                    parents[neighbor] = vertex
+                    queue.append(neighbor)
+        ranges = np.ptp(self.joint_limits, axis=0)
+        nearest = min(parents, key=lambda index: np.linalg.norm((states[index] - goal) / ranges))
+        indices = []
+        while nearest is not None:
+            indices.append(nearest)
+            nearest = parents[nearest]
+        return states, states[indices[::-1]].copy()
 
     def plan(
         self,
@@ -112,7 +130,7 @@ class JointSpacePlanner:
 
         ``validation_distance`` bounds OMPL's Euclidean spacing between state
         checks. The final path must still be independently checked by
-        :meth:`MujocoWorld.check_path`.
+        :meth:`CollisionWorld.check_path`.
         """
         start_q = np.asarray(start, dtype=float)
         goal_q = np.asarray(goal, dtype=float)
@@ -168,15 +186,16 @@ class JointSpacePlanner:
         started = perf_counter()
         status = setup.solve(float(timeout))
         planning_time = perf_counter() - started
-        tree_states = self._planner_states(setup)
+        tree_states, closest_waypoints = self._planner_paths(setup, start_q, goal_q)
 
-        if not bool(status):
+        if not setup.haveExactSolutionPath():
             empty = np.empty((0, 6), dtype=float)
             return PlanningResult(
                 False,
                 empty,
                 empty,
                 tree_states,
+                closest_waypoints,
                 planning_time,
                 0.0,
                 state_checks[0],
@@ -198,6 +217,7 @@ class JointSpacePlanner:
             waypoints,
             raw_waypoints,
             tree_states,
+            closest_waypoints,
             planning_time,
             elapsed_simplification,
             state_checks[0],

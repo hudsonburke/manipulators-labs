@@ -1,67 +1,28 @@
-# Lab 3 Report — Collision Checking and Motion Planning
+# Lab 3 Report — RRT Narrow-Gap Tuning
 
 **Name:**
 
-## Task 1 — IK and direct motion
+## Task 1 — Two-joint narrow gap (plots only)
 
-1. Report the goal joint configuration returned by inverse kinematics. Was it collision-free as a single configuration?
+1. Briefly explain each parameter below. Feel free to use external resources to help you understand the parameters.
+- `RRT2D_STEP_SIZE`
+- `RRT2D_GOAL_BIAS`
+- `RRT2D_VALIDATION_DISTANCE`
+- `RRT2D_MAX_ITERATIONS`
+- `RRT2D_SEED`
 
-2. Was the direct `jtraj` collision-free? Identify the first colliding robot link and environment object reported by the program.
+2. Which settings solved the gap and passed the fine check? Explain what you changed and why.
 
-3. Explain why checking only the start and goal configurations is insufficient.
+## Task 2 — UR5 narrow gap (Swift)
 
-4. Insert `task1_configuration_slice.png`. Which quantities vary in this figure, and which four joint values are held fixed? Why is this not the complete UR5 configuration space?
 
-## Task 2 — Sampling-based path planning
+| Parameter changed | Value | Complete RRT path found? | Fine check passed? | Planning time (s) | What did you observe? |
+|-------------------|------:|:------------------------:|:------------------:|------------------:|-----------------------|
+| Starter settings  |       |                          |                    |                   |                       |
+|                   |       |                          |                    |                   |                       |
+|                   |       |                          |                    |                   |                       |
 
-1. Insert `task2_planner_projection.png`. Explain what the tree points and two plotted paths represent. Why can this two-joint projection hide differences between configurations?
+1. Briefly explain the parameter(s) you changed and why. 
+2. How did the lessons from Task 1 transfer to the UR5? 
+3. What trade-offs did you observe between planning time and path quality? 
 
-2. Compare the raw and simplified path waypoint counts and normalized lengths. How can simplification remove waypoints without introducing a collision?
-
-3. Insert `task2_parameter_results.png` and complete the table.
-
-| Maximum connection distance | Success rate | Median planning time (s) | Median state checks |
-|---:|---:|---:|---:|
-| 0.15 | | | |
-| 0.35 | | | |
-| 0.70 | | | |
-
-4. Describe one tradeoff you observed when changing the maximum connection distance. Do not claim that one short experiment proves the parameter is universally better.
-
-5. Why does the program independently validate the returned path instead of trusting the planner's success status alone?
-
-## Task 3 — Timed trajectories
-
-1. Insert `task3_stop_at_waypoints.png` and `task3_blended_trajectory.png`.
-
-2. Report the duration and final collision status of each trajectory.
-
-| Trajectory | Duration (s) | Collision-free? |
-|---|---:|:---:|
-| Stop at waypoints | | |
-| Blended `mstraj` | | |
-
-3. Compare the joint-position and joint-velocity curves. What changes at the intermediate waypoints?
-
-4. Distinguish a geometric path from a timed trajectory. Which tool generated each one in this lab?
-
-5. Why can trajectory blending invalidate a previously valid geometric path?
-
-## Design extension
-
-1. State the single value you changed and why you selected it.
-
-2. Describe the resulting motion and include one quantitative result or generated figure.
-
-3. Did the modified pipeline succeed? If not, identify the stage that failed—IK, endpoint validation, planning, trajectory generation, or final validation—and explain what you would try next.
-
-## Toolchain reflection
-
-For each tool, state its role and one output that another component consumes.
-
-| Tool | Role in this lab | Output passed to another component |
-|---|---|---|
-| Robotics Toolbox for Python | | |
-| MuJoCo | | |
-| OMPL | | |
-| mjviser | | |

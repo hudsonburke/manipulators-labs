@@ -1,33 +1,25 @@
-"""MuJoCo-backed configuration and path validation for the Lab 3 UR5."""
+"""Robotics Toolbox configuration and path validation for the Lab 3 UR5."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from itertools import pairwise
-from pathlib import Path
+from itertools import combinations, pairwise
 from typing import TYPE_CHECKING
 
-import mujoco
 import numpy as np
+import roboticstoolbox as rtb
+import spatialgeometry as sg
 from numpy.typing import ArrayLike, NDArray
+from spatialmath import SE3
 
 if TYPE_CHECKING:
     from .viewer import Motion
 
-JOINT_NAMES = (
-    "shoulder_pan_joint",
-    "shoulder_lift_joint",
-    "elbow_joint",
-    "wrist_1_joint",
-    "wrist_2_joint",
-    "wrist_3_joint",
-)
-
 
 @dataclass(frozen=True)
 class CollisionPair:
-    """A pair of penetrating or insufficiently separated MuJoCo geoms."""
+    """Robot links or obstacles that penetrate or violate clearance."""
 
     geom1: str
     geom2: str
@@ -77,50 +69,61 @@ class PathReport:
         )
 
 
-class MujocoWorld:
-    """Own the Lab 3 MuJoCo model and answer collision queries.
+class CollisionWorld:
+    """Share one RTB URDF robot between planning queries and Swift playback.
 
-    Planning queries use a private ``MjData`` instance. Viewer playback creates a
-    separate instance so thousands of planner queries never alter visible state.
+    Robot-obstacle distances use the supplied collision geometry. Self checks
+    compare nonadjacent collision-bearing links; adjacent links are excluded
+    because their geometry intentionally meets at the joint.
     """
 
-    def __init__(self, model_path: str | Path, *, safety_margin: float = 0.0):
-        self.model_path = Path(model_path).resolve()
-        self.model = mujoco.MjModel.from_xml_path(str(self.model_path))
-        self._collision_data = mujoco.MjData(self.model)
+    def __init__(
+        self,
+        robot: rtb.Robot,
+        *,
+        safety_margin: float = 0.0,
+        obstacles: Mapping[str, sg.Shape] | None = None,
+    ) -> None:
+        self.robot = robot
         self.safety_margin = float(safety_margin)
-
-        joint_ids = [
-            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, name)
-            for name in JOINT_NAMES
-        ]
-        if any(joint_id < 0 for joint_id in joint_ids):
-            raise ValueError("The MuJoCo model does not contain the expected UR5 joints.")
-
-        self.joint_ids = np.asarray(joint_ids, dtype=int)
-        self.qpos_indices = self.model.jnt_qposadr[self.joint_ids].astype(int)
-        self.qvel_indices = self.model.jnt_dofadr[self.joint_ids].astype(int)
-        self.joint_limits = self.model.jnt_range[self.joint_ids].T.copy()
-
-        self._tool_site_id = mujoco.mj_name2id(
-            self.model, mujoco.mjtObj.mjOBJ_SITE, "tool0"
+        if not np.isfinite(self.safety_margin) or self.safety_margin < 0:
+            raise ValueError("Safety margin must be finite and nonnegative.")
+        self.joint_limits = np.asarray(robot.qlim, dtype=float).copy()
+        self.obstacles = dict(obstacles) if obstacles is not None else {
+            "floor": sg.Cuboid(
+                [2.8, 2.8, 0.10], pose=SE3(0, 0, -0.17),
+                color=[0.82, 0.84, 0.87, 1],
+            ),
+            # Two wall sections leave a physical 0.18 m-high aperture:
+            # x in [-1.10, -0.23], y in [-0.03, 0.03], z in (0.42, 0.60).
+            # The distal arm must lower to cross; a straight start-goal sweep
+            # strikes the upper section. The inner x edge clears the shoulder.
+            "gap_lower": sg.Cuboid(
+                [0.87, 0.06, 0.54], pose=SE3(-0.665, 0, 0.15),
+                color=[0.72, 0.24, 0.18, 1],
+            ),
+            "gap_upper": sg.Cuboid(
+                [0.87, 0.06, 0.70], pose=SE3(-0.665, 0, 0.95),
+                color=[0.72, 0.24, 0.18, 1],
+            ),
+        }
+        for obstacle in self.obstacles.values():
+            obstacle.update()
+        self._collision_links = tuple(link for link in robot.links if len(link.collision))
+        self._self_pairs = tuple(
+            (first, second)
+            for first, second in combinations(self._collision_links, 2)
+            if first.parent is not second and second.parent is not first
         )
-        if self._tool_site_id < 0:
-            raise ValueError("The MuJoCo model must define a site named 'tool0'.")
 
     @property
     def dimension(self) -> int:
-        return len(JOINT_NAMES)
-
-    def keyframe(self, name: str) -> NDArray[np.float64]:
-        """Return the six UR5 joint values stored in a named MuJoCo keyframe."""
-        key_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_KEY, name)
-        if key_id < 0:
-            raise KeyError(f"Unknown MuJoCo keyframe: {name}")
-        return self.model.key_qpos[key_id, self.qpos_indices].copy()
+        return self.robot.n
 
     def _as_configuration(self, q: ArrayLike) -> NDArray[np.float64]:
-        configuration = np.asarray(q, dtype=float)
+        # RTB's C transform updater reads a contiguous joint vector. Pandas
+        # path rows can be strided views despite having the correct shape.
+        configuration = np.ascontiguousarray(q, dtype=float)
         if configuration.shape != (self.dimension,):
             raise ValueError(
                 f"Expected a {self.dimension}-element joint configuration; "
@@ -128,76 +131,57 @@ class MujocoWorld:
             )
         return configuration
 
-    def _write_configuration(
-        self,
-        data: mujoco.MjData,
-        q: ArrayLike,
-        qd: ArrayLike | None = None,
-    ) -> NDArray[np.float64]:
-        configuration = self._as_configuration(q)
-        data.qpos[self.qpos_indices] = configuration
-        data.qvel[:] = 0.0
-        if qd is not None:
-            velocity = np.asarray(qd, dtype=float)
-            if velocity.shape != (self.dimension,):
-                raise ValueError(
-                    f"Expected a {self.dimension}-element joint velocity; "
-                    f"received shape {velocity.shape}."
-                )
-            data.qvel[self.qvel_indices] = velocity
-        mujoco.mj_forward(self.model, data)
-        return configuration
-
-    def _contact_pairs(
-        self, data: mujoco.MjData, safety_margin: float
-    ) -> tuple[CollisionPair, ...]:
-        closest_by_pair: dict[tuple[str, str], float] = {}
-        for contact in data.contact[: data.ncon]:
-            distance = float(contact.dist)
-            if distance > safety_margin:
-                continue
-            names = tuple(
-                sorted(
-                    (
-                        self.model.geom(int(contact.geom[0])).name,
-                        self.model.geom(int(contact.geom[1])).name,
-                    )
-                )
-            )
-            closest_by_pair[names] = min(
-                distance, closest_by_pair.get(names, float("inf"))
-            )
-        return tuple(
-            CollisionPair(geom1, geom2, distance)
-            for (geom1, geom2), distance in closest_by_pair.items()
-        )
+    def _collision_pairs(self, configuration: NDArray[np.float64], margin: float):
+        self.robot.q = configuration
+        # Update once so all collision queries share the same scene transforms.
+        self.robot._update_link_tf(configuration)
+        self.robot.update()
+        for name, obstacle in self.obstacles.items():
+            obstacle.update()
+            for link in self._collision_links:
+                distance, _, _ = link.closest_point(obstacle, margin, skip=True)
+                if distance is not None and distance <= margin:
+                    yield CollisionPair(link.name, name, float(distance))
+        for first, second in self._self_pairs:
+            closest = float("inf")
+            for first_shape in first.collision:
+                for second_shape in second.collision:
+                    distance, _, _ = first_shape.closest_point(second_shape, margin)
+                    if distance is not None:
+                        closest = min(closest, float(distance))
+            if closest <= margin:
+                yield CollisionPair(first.name, second.name, closest)
 
     def check_configuration(
         self, q: ArrayLike, *, safety_margin: float | None = None
     ) -> ConfigurationReport:
-        """Check finiteness, joint limits, and MuJoCo contacts for ``q``."""
+        """Check finiteness, joint limits, obstacles, and nonadjacent links."""
         configuration = self._as_configuration(q)
         stored_q = configuration.copy()
-
         if not np.all(np.isfinite(configuration)):
             return ConfigurationReport(False, stored_q, reason="configuration is not finite")
-
         lower, upper = self.joint_limits
         if np.any(configuration < lower) or np.any(configuration > upper):
             return ConfigurationReport(
-                False,
-                stored_q,
-                reason="configuration violates a joint limit",
+                False, stored_q, reason="configuration violates a joint limit",
             )
-
         margin = self.safety_margin if safety_margin is None else float(safety_margin)
-        self._write_configuration(self._collision_data, configuration)
-        collisions = self._contact_pairs(self._collision_data, margin)
+        if not np.isfinite(margin) or margin < 0:
+            raise ValueError("Safety margin must be finite and nonnegative.")
+        collisions = tuple(self._collision_pairs(configuration, margin))
         return ConfigurationReport(not collisions, stored_q, collisions)
 
     def is_collision_free(self, q: ArrayLike) -> bool:
-        """Return whether ``q`` is a finite, in-bounds, collision-free state."""
-        return self.check_configuration(q).valid
+        """Short-circuit collision queries for the planner's validity callback."""
+        configuration = self._as_configuration(q)
+        lower, upper = self.joint_limits
+        if (
+            not np.all(np.isfinite(configuration))
+            or np.any(configuration < lower)
+            or np.any(configuration > upper)
+        ):
+            return False
+        return next(self._collision_pairs(configuration, self.safety_margin), None) is None
 
     def check_path(
         self,
@@ -249,21 +233,14 @@ class MujocoWorld:
 
         return PathReport(True, checked)
 
-    def tool_pose(self, q: ArrayLike) -> NDArray[np.float64]:
-        """Return the MuJoCo ``tool0`` pose as a 4×4 homogeneous matrix."""
-        self._write_configuration(self._collision_data, q)
-        pose = np.eye(4)
-        pose[:3, :3] = self._collision_data.site_xmat[self._tool_site_id].reshape(3, 3)
-        pose[:3, 3] = self._collision_data.site_xpos[self._tool_site_id]
-        return pose
-
     def play(
         self,
         motions: Mapping[str, Motion] | Sequence[Motion],
         *,
-        port: int = 8080,
+        port: int = 52000,
+        websocket_port: int = 53000,
     ) -> None:
         """Launch the browser trajectory viewer and block until Ctrl+C."""
         from .viewer import run_motion_viewer
 
-        run_motion_viewer(self, motions, port=port)
+        run_motion_viewer(self, motions, port=port, websocket_port=websocket_port)
