@@ -15,13 +15,6 @@
 
 ## Task 2 — UR5 narrow gap (Swift)
 
-
-| Parameter changed | Value | Complete RRT path found? | Fine check passed? | Planning time (s) | What did you observe? |
-|-------------------|------:|:------------------------:|:------------------:|------------------:|-----------------------|
-| Starter settings  |       |                          |                    |                   |                       |
-|                   |       |                          |                    |                   |                       |
-|                   |       |                          |                    |                   |                       |
-
 1. Briefly explain the parameter(s) you changed and why. 
 2. How did the lessons from Task 1 transfer to the UR5? 
 3. What trade-offs did you observe between planning time and path quality? 
