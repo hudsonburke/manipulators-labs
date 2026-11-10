@@ -100,6 +100,12 @@ including secure WebSocket forwarding, and task instructions are in
 [`lab3/README.md`](lab3/README.md). Lab 2 continues to use URSim as described
 above.
 
+Lab 4 captures your laptop camera in a browser and processes the frames with
+OpenCV and MediaPipe in Python beside URSim. The devcontainer automatically
+forwards its private application port `8000`; open it in a normal browser tab
+and grant camera permission. No local Python installation or camera passthrough
+is needed. See [`lab4/README.md`](lab4/README.md) for the three-task workflow.
+
 #### Docker
 
 To run a virtual UR5 robot, we are using the [URSim Docker image](https://hub.docker.com/r/universalrobots/ursim_cb3).

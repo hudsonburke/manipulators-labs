@@ -15,4 +15,6 @@ dependencies = [
     "spatialgeometry>=1.4.0",
     "swift-sim==2.0.0",
     "ur-rtde>=1.6.5",
+    "opencv-contrib-python>=5.0.0.93",
+    "mediapipe>=1.2.2",
 ]

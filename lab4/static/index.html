@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="lab-token" content="__LAB_TOKEN__">
+  <title>Lab 4 — Arm tracking</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Lab 4 — Arm tracking</h1>
+      <p>Simulation only. Camera images go to your Python server; nothing is recorded unless you save evidence.</p>
+    </header>
+    <section aria-labelledby="camera-heading">
+      <h2 id="camera-heading">1. Observe your left arm</h2>
+      <p>Keep your left shoulder, elbow, and wrist in view. The preview is not mirrored.</p>
+      <div class="controls">
+        <button id="start">Start camera</button>
+        <button id="stop-camera" disabled>Stop camera</button>
+      </div>
+      <p id="camera-status" role="status" aria-live="polite">Camera is off.</p>
+      <div class="preview">
+        <video id="camera" autoplay muted playsinline aria-label="Local camera preview"></video>
+        <img id="processed" alt="Processed camera view with left arm landmarks and joint targets" hidden>
+      </div>
+      <canvas id="capture" width="640" height="480" hidden></canvas>
+      <p id="tracking-status">No observations yet.</p>
+    </section>
+    <section aria-labelledby="mapping-heading">
+      <h2 id="mapping-heading">2. Calibrate and preview targets</h2>
+      <p>Hold a comfortable arm pose and calibrate while motion is stopped. This pose maps to the robot's starting configuration.</p>
+      <button id="calibrate" disabled>Calibrate neutral pose</button>
+      <p id="angles">Human angles: —</p>
+      <p id="targets">Robot targets [rad]: —</p>
+    </section>
+    <section aria-labelledby="robot-heading">
+      <h2 id="robot-heading">3. Control URSim</h2>
+      <p><strong>Initialize moves the simulated robot to the starting pose.</strong> Initialize before enabling tracking. Keep PolyScope open alongside this window.</p>
+      <div class="controls">
+        <button id="initialize" disabled>Initialize URSim (moves robot)</button>
+        <button id="enable" disabled>Enable robot tracking</button>
+        <button id="disable">Stop robot</button>
+      </div>
+      <p id="robot-status" role="status" aria-live="polite">Robot control is disabled.</p>
+      <p id="actual">Actual robot joints [rad]: —</p>
+      <p>Lost tracking, stale frames, or leaving this tab disable motion. It never resumes automatically.</p>
+    </section>
+    <section aria-labelledby="evidence-heading">
+      <h2 id="evidence-heading">Save evidence</h2>
+      <label for="task">Task <select id="task"><option value="1">1 — Landmarks and angles</option><option value="2">2 — Target mapping</option><option value="3">3 — URSim control</option></select></label>
+      <button id="save" disabled>Save evidence</button>
+      <p>Saves the annotated image in <code>lab4/outputs/</code>. Task 3 also saves the recent observations, targets, and actual robot joints as CSV.</p>
+    </section>
+    <p id="notice" role="alert"></p>
+  </main>
+</body>
+</html>

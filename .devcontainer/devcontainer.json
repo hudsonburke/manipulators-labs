@@ -11,7 +11,8 @@
     30002,
     29999,
     52000,
-    53000
+    53000,
+    8000
   ],
   "portsAttributes": {
     "6080": {
@@ -41,6 +42,12 @@
     "53000": {
       "label": "Swift WebSocket",
       "protocol": "http",
+      "visibility": "private"
+    },
+    "8000": {
+      "label": "Lab 4 camera and URSim control",
+      "protocol": "http",
+      "onAutoForward": "openBrowser",
       "visibility": "private"
     }
   },
