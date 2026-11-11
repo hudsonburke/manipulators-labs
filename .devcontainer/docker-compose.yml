@@ -13,7 +13,6 @@ services:
     ports:
       - "52000:52000" # Swift HTTP interface
       - "53000:53000" # Swift WebSocket interface
-      - "8000:8000" # Lab 4 browser camera and control
     depends_on:
       - ursim_cb3
 

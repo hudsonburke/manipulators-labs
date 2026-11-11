@@ -10,16 +10,27 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from lab4 import student, student_config as config, vision
+import student
+import student_config as config
+from lab4lib import vision
+
+
+def reference_elbow(shoulder, elbow, wrist):
+    """A correct Task 2 answer, so pipeline tests do not depend on student progress."""
+    points = student.arm_points(shoulder, elbow, wrist)
+    toward_shoulder = points[0] - points[1]
+    forearm = points[2] - points[1]
+    cross = toward_shoulder[0] * forearm[1] - toward_shoulder[1] * forearm[0]
+    return math.atan2(abs(float(cross)), float(toward_shoulder @ forearm))
 
 
 class StudentTests(unittest.TestCase):
-    def test_known_pixel_geometry_and_sign(self):
-        angles = student.arm_angles((100, 10), (100, 50), (140, 50))
-        self.assertAlmostEqual(angles["elbow"], math.pi / 2)
-        self.assertEqual(angles["shoulder"], 0)
-        self.assertAlmostEqual(student.arm_angles((0, 0), (10, 0), (20, 0))["elbow"], math.pi)
-        self.assertAlmostEqual(student.arm_angles((0, 0), (-10, 0), (-20, 0))["shoulder"], -math.pi / 2)
+    def test_arm_points_and_supplied_shoulder_geometry(self):
+        points = student.arm_points((100, 10), (100, 50), (140, 50))
+        np.testing.assert_allclose(points, [[100, 10], [100, 50], [140, 50]])
+        self.assertEqual(student.shoulder_angle((100, 10), (100, 50), (140, 50)), 0)
+        self.assertAlmostEqual(student.shoulder_angle((0, 0), (-10, 0), (-20, 0)), -math.pi / 2)
+        self.assertAlmostEqual(student.shoulder_angle((0, 0), (10, 0), (20, 0)), math.pi / 2)
 
     def test_invalid_geometry_is_rejected(self):
         for points in (((0, 0), (0, 0), (1, 2)),
@@ -27,7 +38,7 @@ class StudentTests(unittest.TestCase):
                        ((0, 0), (1, float("nan")), (1, 2)),
                        ((0, 0, 0), (1, 2, 3), (2, 3, 4))):
             with self.subTest(points=points), self.assertRaises(ValueError):
-                student.arm_angles(*points)
+                student.arm_points(*points)
 
     def test_neutral_gain_limits_and_fixed_joints(self):
         neutral = {"elbow": 1.5, "shoulder": 0.2}
@@ -61,6 +72,9 @@ class TrackerTests(unittest.TestCase):
         self.driver = Mock()
         self.tracker._landmarker = self.driver
         self.frame = np.zeros((200, 400, 3), dtype=np.uint8)
+        elbow = patch.object(student, "elbow_angle", reference_elbow)
+        elbow.start()
+        self.addCleanup(elbow.stop)
 
     def result(self, points=None, confidence=1.0):
         if points is None:
@@ -77,6 +91,16 @@ class TrackerTests(unittest.TestCase):
         self.assertAlmostEqual(angles["shoulder"], math.pi / 4)
         self.assertAlmostEqual(angles["elbow"], 3 * math.pi / 4)
         self.assertFalse(np.any(self.frame))
+
+    def test_unimplemented_elbow_keeps_landmarks_and_withholds_angles(self):
+        self.driver.detect_for_video.return_value = self.result(
+            ((0.25, 0.25), (0.5, 0.75), (0.75, 0.75)))
+        with patch.object(student, "elbow_angle",
+                          side_effect=NotImplementedError("Implement elbow_angle()")):
+            annotated, angles, message = self.tracker.process(self.frame)
+        self.assertIsNone(angles)
+        self.assertIn("Implement elbow_angle", message)
+        self.assertTrue(np.any(annotated))
 
     def test_missing_low_confidence_and_degenerate_arms_have_no_angles(self):
         valid = ((0.25, 0.25), (0.5, 0.5), (0.75, 0.5))

@@ -8,10 +8,7 @@ import numpy as np
 from rtde_control import RTDEControlInterface
 from rtde_receive import RTDEReceiveInterface
 
-if __package__:
-    from . import student_config as config
-else:
-    import student_config as config
+import student_config as config
 
 
 INITIALIZATION_TIMEOUT = 60.0
@@ -188,15 +185,6 @@ class RobotController:
         self._control = self._receive = None
         return errors
 
-    def _start_home(self, epoch):
-        self._motion = "starting"
-        if self._receive is None:
-            self._receive = RTDEReceiveInterface(self._host, self._frequency)
-        if self._cancelled(epoch):
-            return
-        if self._control is None:
-            self._control = RTDEControlInterface(self._host, self._frequency, CONTROL_FLAGS)
-
     def _step(self, command, target, dt):
         alpha = 1.0 if self._tau == 0 else -math.expm1(-dt / self._tau)
         delta = np.clip(alpha * (target - command), -self._speed * dt, self._speed * dt)
@@ -233,13 +221,19 @@ class RobotController:
                                 self._busy = False
                     if initialize:
                         home_deadline = time.monotonic() + INITIALIZATION_TIMEOUT
-                        self._start_home(epoch)
+                        self._motion = "starting"
+                        if self._receive is None:
+                            self._receive = RTDEReceiveInterface(self._host, self._frequency)
                     if self._cancelled(epoch):
                         continue
+                    if initialize and self._control is None:
+                        self._control = RTDEControlInterface(self._host, self._frequency, CONTROL_FLAGS)
                     if self._receive is None:
                         continue
-                    if self._control is None or not self._control.isConnected() or not self._receive.isConnected():
-                        raise RuntimeError("RTDE connection lost")
+                    if not self._receive.isConnected():
+                        raise RuntimeError("RTDE feedback connection lost")
+                    if self._control is None or not self._control.isConnected():
+                        raise RuntimeError("RTDE control connection lost")
                     now = time.monotonic()
                     if self._motion in ("starting", "home") and now >= home_deadline:
                         raise RuntimeError("Initialization timed out before reaching HOME")

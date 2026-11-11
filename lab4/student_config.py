@@ -4,8 +4,9 @@ import numpy as np
 
 # Use the same simulated UR5 starting configuration as Lab 2.
 HOME_Q = np.deg2rad([-90.0, -90.0, -90.0, -90.0, 90.0, 0.0])
-CONTROL_SHOULDER = False  # Task 3: enable shoulder control after testing the elbow
 ELBOW_GAIN = 0.5
+# Optional extension after Task 3: also follow your upper arm with URSim joint 1.
+CONTROL_SHOULDER = False
 SHOULDER_GAIN = -0.5
 JOINT_MIN = HOME_Q - np.array([0.0, 0.35, 0.35, 0.0, 0.0, 0.0])
 JOINT_MAX = HOME_Q + np.array([0.0, 0.35, 0.35, 0.0, 0.0, 0.0])

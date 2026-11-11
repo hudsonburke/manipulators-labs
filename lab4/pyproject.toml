@@ -1,0 +1,11 @@
+[project]
+name = "manipulators-lab4"
+version = "0.1.0"
+description = "Native OpenCV and MediaPipe arm tracking for a Dockerized URSim"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=2.5.3",
+    "opencv-contrib-python>=5.0.0.93",
+    "mediapipe>=1.2.2",
+    "ur-rtde>=1.6.5",
+]

@@ -1,4 +1,4 @@
-"""MediaPipe Tasks left-arm tracking for browser camera frames."""
+"""MediaPipe Tasks left-arm tracking for native OpenCV camera frames."""
 
 import math
 import os
@@ -12,11 +12,8 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-if __package__:
-    from . import student, student_config as config
-else:
-    import student
-    import student_config as config
+import student
+import student_config as config
 
 
 MODEL_URL = (
@@ -103,12 +100,11 @@ class PoseTracker:
                     if (not np.isfinite(coordinates).all()
                             or np.any(coordinates < 0) or np.any(coordinates > 1)):
                         raise ValueError("Left arm is outside the camera image")
-                    points = coordinates * (width, height)
-                    angles = student.arm_angles(*points)
+                    points = student.arm_points(*(coordinates * (width, height)))
                 except ValueError:
                     message = "Invalid left-arm geometry — keep all three joints clearly in view"
                 else:
-                    message = "Tracking left arm"
+                    # Landmarks are drawn before any angle work, so Task 1 stands alone.
                     pixels = [tuple(np.rint(point).astype(int)) for point in points]
                     for first, second in zip(pixels, pixels[1:]):
                         cv2.line(annotated, first, second, (0, 220, 0), 3)
@@ -116,10 +112,19 @@ class PoseTracker:
                         cv2.circle(annotated, point, 6, (0, 220, 0), -1)
                         cv2.putText(annotated, label, (point[0] + 8, point[1] - 8),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 220, 0), 1, cv2.LINE_AA)
-                    for row, key in enumerate(("elbow", "shoulder"), start=2):
-                        cv2.putText(annotated, f"{key}: {math.degrees(angles[key]):.1f} deg",
-                                    (12, 26 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
-                                    (0, 220, 0), 2, cv2.LINE_AA)
+                    try:
+                        angles = {"elbow": student.elbow_angle(*points),
+                                  "shoulder": student.shoulder_angle(*points)}
+                    except NotImplementedError as exc:
+                        message = f"Landmarks tracked. {exc}"
+                    except ValueError:
+                        message = "Invalid left-arm geometry — keep all three joints clearly in view"
+                    else:
+                        message = "Tracking left arm"
+                        for row, key in enumerate(("elbow", "shoulder"), start=2):
+                            cv2.putText(annotated, f"{key}: {math.degrees(angles[key]):.1f} deg",
+                                        (12, 26 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                                        (0, 220, 0), 2, cv2.LINE_AA)
         # OpenCV's built-in font only supports ASCII.
         cv2.putText(annotated, message.replace("—", "-"), (12, 26),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5,
