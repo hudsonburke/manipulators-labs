@@ -2,6 +2,15 @@
 
 import numpy as np
 
+# Task 1 planar 2R RRT --------------------------------------------------------------
+RRT2D_START_Q = np.array([-0.70, 2.00])  # folded below the gap
+RRT2D_GOAL_Q = np.array([0.70, -2.00])  # folded above the gap
+RRT2D_STEP_SIZE = 0.45  # maximum joint-space extension, radians
+RRT2D_VALIDATION_DISTANCE = 0.02  # deliberately coarse; TUNE THIS
+RRT2D_GOAL_BIAS = 0.10  # probability of sampling the goal directly
+RRT2D_MAX_ITERATIONS = 10000
+RRT2D_SEED = 17
+
 # Task definition -----------------------------------------------------------------
 # The target is in the default RTB URDF UR5 end-effector frame (wrist_3_link).
 # Position is in meters; rotation is a 3x3 rotation matrix.
@@ -13,22 +22,13 @@ GOAL_ROTATION = np.array(
 )
 IK_SEED = np.deg2rad([60.0, -90.0, -80.0, -100.0, 90.0, 0.0])
 
-# Collision and planning -----------------------------------------------------------
+# Task 2 UR5 RRT -------------------------------------------------------------------
 SAFETY_MARGIN = 0.005  # minimum collision-geometry clearance, meters
 PATH_VALIDATION_DISTANCE = 0.005  # maximum joint change between checks, radians
-PLANNER_VALIDATION_DISTANCE = 0.30  # deliberately coarse; tune for the narrow aperture
+PLANNER_VALIDATION_DISTANCE = 0.30  # deliberately coarse; TUNE THIS
 MAX_CONNECTION_DISTANCE = 0.35  # maximum RRT extension, radians
 PLANNING_TIMEOUT = 5.0  # seconds
 PLANNER_SEED = 4
-
-# Task 1 planar 2R RRT --------------------------------------------------------------
-RRT2D_START_Q = np.array([-0.70, 2.00])  # folded below the gap
-RRT2D_GOAL_Q = np.array([0.70, -2.00])  # folded above the gap
-RRT2D_STEP_SIZE = 0.45  # maximum joint-space extension, radians
-RRT2D_VALIDATION_DISTANCE = 0.45  # deliberately coarse; tune independently
-RRT2D_GOAL_BIAS = 0.10  # probability of sampling the goal directly
-RRT2D_MAX_ITERATIONS = 2500
-RRT2D_SEED = 17
 
 # Trajectory generation ------------------------------------------------------------
 TRAJECTORY_DT = 0.02  # seconds

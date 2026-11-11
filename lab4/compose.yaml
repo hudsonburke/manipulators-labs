@@ -1,0 +1,13 @@
+name: manipulators-lab4
+
+services:
+  ursim_cb3:
+    image: universalrobots/ursim_cb3:latest
+    platform: linux/amd64
+    environment:
+      ROBOT_MODEL: UR5
+    ports:
+      - "127.0.0.1:6080:6080" # PolyScope through noVNC
+      - "127.0.0.1:30002:30002" # URScript upload
+      - "127.0.0.1:30004:30004" # RTDE
+      - "127.0.0.1:29999:29999" # Dashboard

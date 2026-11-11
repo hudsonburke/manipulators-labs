@@ -6,8 +6,15 @@ You will be using a virtual UR5 robot, which is a 6-axis robotic arm made by Uni
 
 ## Environment Setup
 
-You can use GitHub Codespaces or a [local setup](#Local-Setup) to run the code for these labs.
-Codespaces also automatically starts URSim with Docker Compose.
+**Lab 4 uses a separate native-host Python environment and an OpenCV camera
+window. Start with [`lab4/README.md`](lab4/README.md), not the root `uv sync` or
+Codespaces instructions below.** On Windows, Lab 4 Python runs in native
+PowerShell, not WSL. Docker runs only URSim for Lab 4 Task 3; Tasks 1–2 need
+nothing else.
+
+For **Labs 2–3**, you can use GitHub Codespaces or a [local setup](#Local-Setup).
+Codespaces also automatically starts URSim with Docker Compose. The setup
+instructions below apply to those labs.
 
 ### GitHub Codespaces
 
@@ -99,6 +106,10 @@ robot-description assets; no MuJoCo or Menagerie assets are needed. Codespaces
 including secure WebSocket forwarding, and task instructions are in
 [`lab3/README.md`](lab3/README.md). Lab 2 continues to use URSim as described
 above.
+
+Lab 4 has its own small Python 3.12 environment and native camera application.
+Follow [`lab4/README.md`](lab4/README.md) for setup, the three task scripts, and
+the simulator-only Docker route; do not run it in the Labs 2–3 devcontainer.
 
 #### Docker
 
