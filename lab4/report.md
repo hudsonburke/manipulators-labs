@@ -2,23 +2,34 @@
 
 **Name:**
 
-## Task 1 — Landmarks and angles
+## Task 1 — Arm landmarks (`task1_landmarks.py`)
 
 ![Tracked left arm](outputs/task1_preview.jpg)
 
-| Human pose | Observed elbow angle (deg) | Expected angle (deg) | Explanation of difference |
-|---|---:|---:|---|
-| Approximately straight | | | |
-| Approximately right angle | | | |
-| Bent | | | |
+| Landmark | MediaPipe index | Why that index |
+|---|---:|---|
+| Left shoulder | | |
+| Left elbow | | |
+| Left wrist | | |
 
-1. Explain how `arm_angles()` calculates the elbow and signed shoulder angles.
-2. Why use pixel coordinates rather than unscaled normalized coordinates? What changes when your arm leaves the image plane?
-3. What did the app display when a landmark became hidden or unreliable?
 
-## Task 2 — Mapping and calibration
+## Task 2 — Elbow joint angle (`task2_elbow_angle.py`)
 
-![Bounded target preview](outputs/task2_preview.jpg)
+![Elbow angle](outputs/task2_preview.jpg)
+
+| Human pose | Expected angle | Observed (deg) | Observed (rad) | Explanation of difference |
+|---|---:|---:|---:|---|
+| Arm straight | ≈ 180° | | | |
+| Forearm at a right angle | ≈ 90° | | | |
+| Elbow sharply bent | ≈ 45–60° | | | |
+
+
+1. Explain your formula and why the result is always within `[0, π]`.
+2. What happens to the measured angle when your arm leaves the image plane (points toward or away from the camera)? Test it, then explain why a 2D measurement behaves this way.
+
+## Task 3 — URSim follows the elbow angle (`task3_control.py`)
+
+![URSim control evidence](outputs/task3_preview.jpg)
 
 | Trial | Elbow gain | Neutral human angle (deg) | Current human angle (deg) | Robot elbow target (rad) | Observation |
 |---|---:|---:|---:|---:|---|
@@ -26,21 +37,15 @@
 | Smaller gain | | | | | |
 | Reversed sign | | | | | |
 
+| Trial | Smoothing time constant (s) | Jitter | Lag/responsiveness |
+|---|---:|---|---|
+| No smoothing | 0 | | |
+| Smoothed | 0.15 | | |
+
 1. Explain the neutral offset, mapping direction, and target clipping. Which robot joint index is the elbow?
-2. How did you confirm the other joints stayed fixed? What can joint bounds not guarantee?
+2. What parts of this simulation-only setup would need validation before any physical robot use?
 
-## Task 3 — URSim control and stopping
+## Optional extension — shoulder joint
 
-![URSim control evidence](outputs/task3_preview.jpg)
-
-| Trial | Shoulder enabled? | Smoothing time constant (s) | Jitter | Lag/responsiveness |
-|---|---|---:|---|---|
-| Elbow only | No | | | |
-| Both joints, no smoothing | Yes | 0 | | |
-| Both joints, smoothed | Yes | 0.15 | | |
-
-1. Explain your final mapping and gains. Did actual joints follow the intended direction and stay near the targets?
-2. Record the observed outcome for each: hidden wrist, Stop camera, Stop robot, and returning to a visible pose. Did control require explicit re-enabling?
-3. Inspect `outputs/task3_control.csv`. Identify an interval with enabled motion and an interval after tracking loss; report target and actual elbow values from each. Explain blank entries and the difference between observation rate and servo rate.
-4. Record typical displayed processing and round-trip times. Why do they not measure complete camera-to-robot latency?
-5. What parts of this setup would need validation before any physical robot use?
+| Shoulder gain | Observed behaviour | Why that sign |
+|---|---:|---|
