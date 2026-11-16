@@ -4,13 +4,14 @@ import unittest
 from unittest.mock import patch
 
 import task3_control
+from lab4lib import controller
 
 
 class HostSelectionTests(unittest.TestCase):
     def run_with(self, argv, robot):
         with patch.object(task3_control, 'PoseTracker'), \
                 patch.object(task3_control, 'Camera'), \
-                patch.object(task3_control, 'RobotController', robot), \
+                patch.object(controller, 'RobotController', robot), \
                 patch.object(task3_control.sys, 'stdout'), \
                 patch.object(task3_control.sys, 'stderr'):
             return task3_control.main(argv)

@@ -29,8 +29,11 @@ def arm_points(shoulder: Point, elbow: Point, wrist: Point) -> np.ndarray:
 def elbow_angle(shoulder: Point, elbow: Point, wrist: Point) -> float:
     """Task 2: return the interior elbow angle in radians, within [0, pi].
 
-    Implement this function yourself. The angle is measured at ``elbow``,
-    between the two arm segments:
+    Instructor demo implementation using the atan2 form below. Restore the
+    student exercise version (which raises NotImplementedError) before
+    publishing the lab with: git restore lab4/student.py
+
+    The angle is measured at ``elbow``, between the two arm segments:
 
         shoulder --------- elbow --------- wrist
         a = shoulder - elbow        b = wrist - elbow
@@ -56,9 +59,12 @@ def elbow_angle(shoulder: Point, elbow: Point, wrist: Point) -> float:
         elbow_angle((0, 0), (1, 0), (2, 0))  ->  pi     (straight arm)
         elbow_angle((0, 0), (1, 0), (2, 1))  ->  3*pi/4 (forearm bent 45 degrees)
     """
-    # Steps: validate with arm_points(), form a = shoulder - elbow and
-    # b = wrist - elbow, then return the angle between them (formulas above).
-    raise NotImplementedError("Implement elbow_angle() in student.py for Lab 4 Task 2.")
+    points = arm_points(shoulder, elbow, wrist)
+    toward_shoulder = points[0] - points[1]   # elbow -> shoulder
+    forearm = points[2] - points[1]           # elbow -> wrist
+    cross = toward_shoulder[0] * forearm[1] - toward_shoulder[1] * forearm[0]
+    # abs(cross) keeps the result in [0, pi]; atan2 needs no clipping.
+    return float(math.atan2(abs(float(cross)), float(toward_shoulder @ forearm)))
 
 
 def shoulder_angle(shoulder: Point, elbow: Point, wrist: Point) -> float:

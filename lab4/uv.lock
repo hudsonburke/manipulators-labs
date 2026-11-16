@@ -134,6 +134,10 @@ dependencies = [
     { name = "mediapipe" },
     { name = "numpy" },
     { name = "opencv-contrib-python" },
+]
+
+[package.optional-dependencies]
+robot = [
     { name = "ur-rtde" },
 ]
 
@@ -142,8 +146,9 @@ requires-dist = [
     { name = "mediapipe", specifier = ">=1.2.2" },
     { name = "numpy", specifier = ">=2.5.3" },
     { name = "opencv-contrib-python", specifier = ">=5.0.0.93" },
-    { name = "ur-rtde", specifier = ">=1.6.5" },
+    { name = "ur-rtde", marker = "extra == 'robot'", specifier = ">=1.6.5" },
 ]
+provides-extras = ["robot"]
 
 [[package]]
 name = "matplotlib"

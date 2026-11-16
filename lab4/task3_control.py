@@ -10,7 +10,6 @@ import sys
 import time
 
 from lab4lib.camera import Camera
-from lab4lib.controller import RobotController
 from lab4lib.evidence import save_control_log, save_preview
 from lab4lib.overlay import with_status
 from lab4lib.session import LOG_COLUMNS, ControlSession
@@ -62,6 +61,10 @@ def main(argv=None):
     host = args.host.strip()
     if not host or '://' in host or '/' in host:
         parser.error('--host must be a host name or IP address, not a URL')
+    try:
+        from lab4lib.controller import RobotController
+    except ImportError as exc:
+        parser.error(f'{exc}. Run: uv sync --locked --extra robot')
     warning = demo_warning(host)
     if warning:
         print(warning, file=sys.stderr, flush=True)

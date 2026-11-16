@@ -7,5 +7,9 @@ dependencies = [
     "numpy>=2.5.3",
     "opencv-contrib-python>=5.0.0.93",
     "mediapipe>=1.2.2",
-    "ur-rtde>=1.6.5",
 ]
+
+# Task 3 only. ur-rtde has no macOS wheels, so it stays out of the default sync
+# (Tasks 1-2) where it would otherwise trigger a C++ build on every Mac.
+[project.optional-dependencies]
+robot = ["ur-rtde>=1.6.5"]
