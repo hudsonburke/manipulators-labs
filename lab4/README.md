@@ -28,7 +28,7 @@ only Task 3 connects a robot.
 |---|---|---|
 | `task1_landmarks.py` | Task 1: landmarks in the preview | run |
 | `task2_elbow_angle.py` | Task 2: elbow angle in the preview | run |
-| `task3_control.py` | Task 3: calibrate and drive URSim (or a UR controller with `--host`) | run |
+| `task3_control.py` | Task 3: calibrate and drive URSim (or a UR controller with `--host`); needs the `robot` extra | run |
 | `student.py` | `elbow_angle()` — your Task 2 implementation | **yes** |
 | `student_config.py` | gains, bounds, smoothing, shoulder switch | **yes** |
 | `report.md` | report template | **yes** |
@@ -55,6 +55,18 @@ uv run python task1_landmarks.py
 uv supplies Python 3.12; do not run this lab from the repository-root
 environment. If the VS Code Python extension asks for an interpreter, pick
 `lab4/.venv/`.
+
+`uv sync --locked` installs what Tasks 1 and 2 need. Task 3 also needs the
+`robot` extra, because robot control uses `ur_rtde`:
+
+```sh
+uv sync --locked --extra robot
+```
+
+`ur-rtde` has no macOS wheels, so on a Mac that step compiles it from source:
+run `xcode-select --install` and `brew install cmake boost` first, and expect a
+few minutes. Linux and x86_64 Windows download a prebuilt wheel. Run Task 3 with
+the extra selected: `uv run --extra robot python task3_control.py`.
 
 `--camera 0` is the default device; add `--camera 1` (or another index) if the
 wrong camera opens. Allow camera access for your terminal in the operating
@@ -95,6 +107,31 @@ docker compose down
 
 If Docker reports a port is already allocated, stop the Labs 2–3 devcontainer
 stack first; both publish the same simulator ports.
+
+#### Real controller demo (instructor only)
+
+`uv run --extra robot python task3_control.py --host <robot IP>` uploads the same
+URScript control program and streams `servoJ` setpoints to a physical UR
+controller instead of URSim. Everything else — keys, bounds, watchdog, evidence —
+is unchanged. This path has only been exercised against the simulator.
+
+Before enabling motion:
+
+- Put the robot in **remote control** mode on the pendant, with RTDE reachable
+  from your laptop on the same network.
+- Check `HOME_Q` and `JOINT_MIN`/`JOINT_MAX` in `student_config.py` against the
+  real cell. They describe the empty simulated scene, so **I** may drive into a
+  table, fixture, or hard joint limit; edit them before connecting.
+- Clear the workspace, keep PolyScope visible, and keep the emergency stop
+  within reach. The app does no collision checking, payload or TCP
+  configuration, or safety-plane handling. Motion is slow (0.25 rad/s) but
+  starts on **I**.
+- Losing tracking, pressing **Space**/**S**, closing the window, or a camera
+  failure still disables control, and nothing resumes automatically.
+
+A non-local target prints a startup warning; that is expected for real hardware.
+The app stays at 125 Hz (`CONTROL_FREQUENCY`), which both CB3 and e-Series
+controllers accept.
 
 ## Task 1 — Get the arm landmarks with MediaPipe
 
@@ -163,7 +200,8 @@ Generated file: `outputs/task2_preview.jpg`.
 
 ## Task 3 — Move the UR5 using that angle
 
-Run `uv run python task3_control.py` with URSim started as described above.
+Run `uv run --extra robot python task3_control.py` with URSim started as
+described above.
 
 1. `student.joint_targets()` maps the change from a calibrated neutral pose onto
    bounded UR5 joints. Joint 2 is the elbow: home elbow angle plus `ELBOW_GAIN`
@@ -267,6 +305,19 @@ that the CSV contains a successful trial, and the model cache is not included.
   camera or robot; use PolyScope if you cannot reach the keyboard stop.
 - **`NotImplementedError` in Task 2:** implement `student.elbow_angle()`. Task 3
   stays blocked until it works.
+- **`uv sync` fails while building `ur_rtde` (macOS):** `ur-rtde` 1.6.5 has no
+  macOS wheels, so `uv sync --locked --extra robot` compiles it from source.
+  The build needs Xcode command line tools (`xcode-select --install`), a `cmake`
+  binary, and Boost with `system`, `thread`, and `program_options`. Homebrew is
+  only the usual source for the last two:
+  `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+  then `brew install cmake boost`. Without Homebrew, install CMake from
+  <https://cmake.org/download/> and a Boost build, then point the build at it:
+  `CMAKE_PREFIX_PATH=/path/to/boost uv sync --locked --extra robot`. Tasks 1 and
+  2 never build it: plain `uv sync --locked` is enough for them.
+- **Task 3 reports `ur_rtde is not installed`:** the `robot` extra is not in the
+  environment. Run `uv sync --locked --extra robot`, then
+  `uv run --extra robot python task3_control.py`.
 - **Model download/import failure:** read the terminal, confirm
   `uv sync --locked` finished in `lab4`, and check internet access.
 - **Initialize fails:** make sure Docker and URSim are running with the robot
