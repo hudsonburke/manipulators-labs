@@ -6,11 +6,11 @@
 
 ![Tracked left arm](outputs/task1_preview.jpg)
 
-| Landmark | MediaPipe index | Why that index |
-|---|---:|---|
-| Left shoulder | | |
-| Left elbow | | |
-| Left wrist | | |
+| Landmark | MediaPipe index | 
+|---|---:|
+| Left shoulder | | 
+| Left elbow | | 
+| Left wrist | | 
 
 
 ## Task 2 — Elbow joint angle (`task2_elbow_angle.py`)
