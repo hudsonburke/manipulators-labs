@@ -14,6 +14,6 @@ MAX_JOINT_SPEED = 0.25  # radians/second
 SMOOTHING_TIME_CONSTANT = 0.15  # seconds; use 0 to compare unfiltered targets
 
 # Keep the control safeguards fixed for required tasks.
-TARGET_MAX_AGE = 0.75  # seconds without a valid observation before disabling motion
+TARGET_MAX_AGE = 0.75  # watchdog: seconds without fresh frames before pausing tracking control
 MIN_LANDMARK_CONFIDENCE = 0.6
 CONTROL_FREQUENCY = 125.0  # CB3 UR5; this is not a hard-real-time guarantee

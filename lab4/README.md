@@ -141,8 +141,10 @@ Before enabling motion:
   within reach. The app does no collision checking, payload or TCP
   configuration, or safety-plane handling. Motion is slow (0.25 rad/s) but
   starts on **I**.
-- Losing tracking, pressing **Space**/**S**, closing the window, or a camera
-  failure still disables control, and nothing resumes automatically.
+- Tracking loss pauses following, but **motion resumes automatically** when a
+  fresh pose returns. It is not a disarm or safety-rated stop. **Space**/**S**,
+  closing the window, and camera failures disarm control. HOME is an explicit
+  move independent of tracking; use **Space**/**S** to cancel it.
 
 A non-local target prints a startup warning; that is expected for real hardware.
 The app stays at 125 Hz (`CONTROL_FREQUENCY`), which both CB3 and e-Series
@@ -227,15 +229,20 @@ described above.
    values respond. Change only `ELBOW_GAIN` (smaller magnitude, then the
    opposite sign), restarting and recalibrating each time. Explain the direction,
    sensitivity, and clipping; use a positive gain for your first live test.
-3. Press **I** once to move explicitly to `HOME_Q` at limited speed. **Space** or
-   **S** cancels initialization. Then press **C**, then **E**, and move slowly
-   while comparing target and actual joint positions with PolyScope.
-4. Verify fail-closed behavior: hide your wrist. The controller must disable, and
-   must not resume when tracking returns; press **E** again explicitly. Also test
-   **Space** or **S**, and close the preview to check cleanup. A camera read
-   failure must likewise stop control; if it is safe to disconnect your camera,
-   observe it, otherwise state in the report that this case was not exercised.
-   Restart, initialize, and recalibrate after quitting or a camera failure.
+3. Press **I** once to move to `HOME_Q` at limited speed. HOME does not depend on
+   camera tracking; **Space** or **S** cancels it.
+   **Wait for the controller status to say "At HOME" before pressing C, then E.**
+   Calibrate with your left shoulder, elbow, and wrist visible. Once enabled,
+   move slowly while comparing target and actual joint positions with PolyScope.
+   Pressing **C** or **E** too early stops initialization when the action is refused.
+4. Hide your wrist: following must pause as soon as a frame reports missing
+   tracking. Show your arm again: following resumes toward the current angle
+   without another **E** or recalibration. `enabled=True` means tracking control
+   is armed, even while paused. Then press **Space** or **S**: returning tracking
+   must not restart motion until you explicitly press **E** again. Close the
+   preview to check cleanup. A camera read failure also disarms control; if it
+   is safe to disconnect your camera, test it, otherwise state that it was not
+   exercised. Restart, initialize, and recalibrate after quitting or camera failure.
 5. Compare `SMOOTHING_TIME_CONSTANT = 0` with the supplied `0.15` seconds, gains
    unchanged. Explain the jitter/lag tradeoff; filtering does not replace the
    motion-rate limit.
@@ -268,10 +275,10 @@ camera capture or motion, so press **Space** or **S** before switching away.
 | `task2_elbow_angle.py` | **2** save Task 2 evidence · **Q**/**Esc** quit |
 | `task3_control.py` | **I** move to HOME · **C** calibrate · **E** enable · **Space**/**S** stop · **3** save Task 3 evidence · **Q**/**Esc** quit |
 
-Closing the preview, a camera read failure, Ctrl+C, and exceptions also disable
+Closing the preview, a camera read failure, Ctrl+C, and exceptions disable
 control and release the camera, tracker, and controller. Missing or stale pose
-data disables motion. A visible pose returning **never automatically re-enables**
-control.
+data pauses following without disarming it; a fresh pose resumes automatically.
+**Space**/**S** disarms control and requires **E** to resume.
 
 ## Supplied control behavior
 
@@ -286,10 +293,13 @@ latency rather than assuming the read timestamp is the exposure time.
 A separate worker owns the RTDE connection, uses the latest target, smooths
 changes, and limits commanded joint speed. The CB3 UR5 control loop targets
 125 Hz independently of the camera loop, and a normal desktop OS is **not**
-hard-real-time. Loss of confidence, invalid input, or no valid observation
-within `TARGET_MAX_AGE` disables control; the worker watchdog can stop motion
-even if camera processing stalls. Enabling always requires fresh tracking and an
-explicit key press.
+hard-real-time. A frame without usable tracking discards the previous target
+and requests a controlled stop; it does not keep chasing that old angle.
+Fresh tracking resumes from the measured joints with the same smoothing and
+speed limits. If frames stop arriving entirely, the worker watchdog pauses
+following after `TARGET_MAX_AGE` (0.75 s). Invalid targets or driver errors
+still disarm control. Initial enabling and re-enabling after **Space**/**S**
+require fresh tracking and an explicit **E**.
 
 The fixed bounds and starting pose suit the supplied empty URSim scene. This lab
 does not perform Lab 3 collision checking.

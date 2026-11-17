@@ -25,6 +25,9 @@ class PreviewRobot:
         self.enabled = False
         self.reason = reason
 
+    def pause_tracking(self):
+        self.target = None
+
     def update_target(self, q, observed_at):
         self.target = q.copy()
         self.received.append(observed_at)
@@ -91,27 +94,30 @@ class ControlSessionTests(unittest.TestCase):
             self.session.calibrate()
         self.assertEqual(self.session.neutral, original)
 
-    def test_missing_or_stale_pose_stops_motion_and_never_resumes(self):
+    def test_missing_or_stale_pose_pauses_without_disarming(self):
         self.ready()
         self.session.enable()
-        self.observe(None, message='Missing wrist')
-        self.assertFalse(self.robot.enabled)
-        self.assertIsNone(self.session.target)
-        self.assertEqual(self.robot.reason, 'Missing wrist')
-        self.observe({'elbow': 1.5, 'shoulder': 0.2})
-        self.assertFalse(self.robot.enabled)
-        self.assertIsNotNone(self.session.target)
-        self.session.observe({'elbow': 1.5, 'shoulder': 0.2}, time.monotonic() - config.TARGET_MAX_AGE - 1,
-                             'Tracked')
-        self.assertFalse(self.session.tracking())
-        self.assertFalse(self.robot.enabled)
+        received = list(self.robot.received)
+        for angles, timestamp in (
+            (None, time.monotonic()),
+            ({'elbow': 1.5, 'shoulder': 0.2}, time.monotonic() - config.TARGET_MAX_AGE - 1),
+        ):
+            self.session.observe(angles, timestamp, 'Missing or stale pose')
+            self.assertTrue(self.robot.enabled)
+            self.assertIsNone(self.robot.target)
+            self.assertIsNone(self.session.target)
+            self.assertFalse(self.session.tracking())
+            self.assertEqual(self.robot.received, received)
+        self.observe({'elbow': 1.7, 'shoulder': 0.2})
+        self.assertTrue(self.robot.enabled)
+        self.assertIsNotNone(self.robot.target)
+        self.assertGreater(self.robot.target[2], config.HOME_Q[2])
 
     def test_initialize_clears_calibration_and_target(self):
         self.ready()
         self.session.initialize()
         self.assertIsNone(self.session.neutral)
         self.assertIsNone(self.session.target)
-        self.assertEqual(self.session.feedback, 'Connecting and moving to HOME.')
 
     def test_log_rows_keep_blanks_when_data_is_unavailable(self):
         self.observe(None, message='Missing wrist')
@@ -133,6 +139,8 @@ class ControlSessionTests(unittest.TestCase):
         self.session.stop('Operator stop.')
         self.assertFalse(self.robot.enabled)
         self.assertEqual(self.session.feedback, 'Operator stop.')
+        self.observe({'elbow': 1.7, 'shoulder': 0.2})
+        self.assertFalse(self.robot.enabled)
 
 
 if __name__ == '__main__':

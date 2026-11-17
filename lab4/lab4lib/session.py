@@ -33,11 +33,10 @@ class ControlSession:
         return self.robot.snapshot()
 
     def observe(self, angles, observed_at, message):
-        """Accept one tracked pose; stale or invalid poses stop motion."""
+        """Pause following on a missing/stale pose; fresh poses resume if enabled."""
         self.angles, self.observed_at, self.target = angles, observed_at, None
         if not self.tracking():
-            self.robot.disable(message if angles is None
-                               else 'Pose is stale; robot control disabled.')
+            self.robot.pause_tracking()
         elif self.neutral is not None:
             self.target = joint_targets(angles, self.neutral)
             self.robot.update_target(self.target, observed_at)
@@ -55,7 +54,7 @@ class ControlSession:
     def initialize(self):
         self.robot.initialize()
         self.neutral = self.target = None
-        self.feedback = 'Connecting and moving to HOME.'
+        self.feedback = 'HOME requested. Wait for "At HOME" before C or E.'
 
     def calibrate(self):
         self._require_pose()

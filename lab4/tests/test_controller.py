@@ -10,6 +10,7 @@ from unittest.mock import patch
 import numpy as np
 
 from lab4lib import controller
+from lab4lib.session import ControlSession
 
 
 class FakeTransport:
@@ -167,6 +168,57 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(thread_ids, {self.robot._worker.ident})
         json.dumps(self.robot.snapshot(), allow_nan=False)
 
+    def test_session_home_is_independent_of_tracking(self):
+        session = ControlSession(self.robot)
+        self.transport.finish_home = False
+        self.transport.q[2] += 0.2
+        session.initialize()
+        self.until(lambda: bool(self.transport.calls_for("moveJ")))
+        session.observe(None, time.monotonic(), "Missing wrist")
+        self.assertTrue(self.robot.snapshot()["busy"])
+        self.assertEqual(self.transport.calls_for("stopJ"), [])
+        self.transport.q = controller.config.HOME_Q.copy()
+        self.until(lambda: self.robot.snapshot()["initialized"])
+        self.assertFalse(self.robot.snapshot()["enabled"])
+
+    def test_session_tracking_loss_pauses_and_recovers_without_reenabling(self):
+        session = ControlSession(self.robot)
+        session.initialize()
+        self.until(lambda: self.robot.snapshot()["initialized"])
+        angles = {"elbow": 1.5, "shoulder": 0.2}
+        session.observe(angles, time.monotonic(), "Tracked")
+        session.calibrate()
+        session.enable()
+        self.until(lambda: bool(self.transport.calls_for("servoJ")))
+        for missing in (True, False):
+            stops = len(self.transport.calls_for("servoStop"))
+            session.observe(None if missing else angles,
+                            time.monotonic() - (0 if missing else controller.config.TARGET_MAX_AGE + 1),
+                            "Missing or stale pose")
+            self.until(lambda: len(self.transport.calls_for("servoStop")) > stops)
+            before = len(self.transport.calls_for("servoJ"))
+            time.sleep(3 / controller.config.CONTROL_FREQUENCY)
+            self.assertEqual(len(self.transport.calls_for("servoJ")), before)
+            self.assertTrue(self.robot.snapshot()["enabled"])
+            self.assertTrue(self.robot.snapshot()["initialized"])
+            # Resume from measured joints, not the old pre-pause command.
+            self.transport.q[2] = controller.config.HOME_Q[2] - 0.1
+            actual = self.transport.q.copy()
+            session.observe({"elbow": 1.7, "shoulder": 0.2}, time.monotonic(), "Tracked")
+            self.until(lambda: len(self.transport.calls_for("servoJ")) > before)
+            resumed = np.array(self.transport.calls_for("servoJ")[before][0])
+            self.assertGreater(resumed[2], actual[2])
+            self.assertLessEqual(np.max(np.abs(resumed - actual)),
+                                 controller.config.MAX_JOINT_SPEED / controller.config.CONTROL_FREQUENCY + 1e-12)
+        session.observe(None, time.monotonic(), "Missing wrist")
+        session.stop()
+        self.until(lambda: not self.robot.snapshot()["busy"])
+        before = len(self.transport.calls_for("servoJ"))
+        session.observe(angles, time.monotonic(), "Tracked")
+        time.sleep(3 / controller.config.CONTROL_FREQUENCY)
+        self.assertFalse(self.robot.snapshot()["enabled"])
+        self.assertEqual(len(self.transport.calls_for("servoJ")), before)
+
     def test_cancel_initial_move_stops_and_requires_initialization_again(self):
         self.transport.finish_home = False
         self.transport.q[2] += 0.2
@@ -233,17 +285,16 @@ class ControllerTests(unittest.TestCase):
         self.assertFalse(state["enabled"])
         self.assertTrue(self.transport.calls_for("stopJ"))
 
-    def test_watchdog_stops_without_frames_and_never_auto_resumes(self):
+    def test_watchdog_pauses_without_frames_and_resumes_on_fresh_target(self):
         self.enable()
         self.clock_offset += controller.config.TARGET_MAX_AGE + 1
-        self.until(lambda: not self.robot.snapshot()["busy"] and not self.robot.snapshot()["enabled"])
-        self.assertTrue(self.transport.calls_for("servoStop"))
+        self.until(lambda: bool(self.transport.calls_for("servoStop")))
         self.assertTrue(self.robot.snapshot()["initialized"])
+        self.assertTrue(self.robot.snapshot()["enabled"])
         before = len(self.transport.calls_for("servoJ"))
-        self.target()
         time.sleep(3 / controller.config.CONTROL_FREQUENCY)
         self.assertEqual(len(self.transport.calls_for("servoJ")), before)
-        self.robot.enable()
+        self.target()
         self.until(lambda: len(self.transport.calls_for("servoJ")) > before)
 
     def test_program_startup_timeout_does_not_send_a_move(self):

@@ -123,6 +123,16 @@ class RobotController:
                 self._target = np.clip(target, self._lower, self._upper)
                 self._target_at = observed_at
 
+    def pause_tracking(self):
+        """Discard the target without disarming control or interrupting HOME."""
+        with self._condition:
+            if self._closed:
+                return
+            if self._enabled and self._target_at is not None:
+                self._epoch += 1
+            self._target = self._target_at = None
+            self._condition.notify_all()
+
     def disable(self, reason="Control disabled."):
         with self._condition:
             if self._closed:
@@ -285,11 +295,20 @@ class RobotController:
                     with self._condition:
                         if not self._enabled or epoch != self._epoch:
                             continue
-                        if self._target_at is None or not 0 <= now - self._target_at <= self._max_age:
-                            self.disable("Tracking target expired; control disabled. Enable explicitly to resume.")
-                            continue
-                        dt = min(max(0.0, now - self._last_command_at), self._period)
-                        command = self._step(self._command, self._target, dt)
+                        command = None
+                        if self._target_at is not None and 0 <= now - self._target_at <= self._max_age:
+                            if self._motion != "servo":
+                                self._command = actual.copy()
+                                self._last_command_at = now - self._period
+                            dt = min(max(0.0, now - self._last_command_at), self._period)
+                            command = self._step(self._command, self._target, dt)
+                            self._message = "Control enabled; following tracking."
+                    if command is None:
+                        self._stop_motion()
+                        with self._condition:
+                            if self._enabled and epoch == self._epoch:
+                                self._message = "Tracking paused; resumes automatically with a fresh pose. Space/S disarms."
+                        continue
                     if self._cancelled(epoch):
                         continue
                     self._motion = "servo"
