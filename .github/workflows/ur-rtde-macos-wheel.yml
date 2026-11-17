@@ -4,6 +4,11 @@ name: ur_rtde macOS wheel
 # users would otherwise compile it locally (CMake + Boost). Build the wheel here
 # instead. Push a tag `ur-rtde-<version>` to attach the wheels to a release;
 # run the workflow manually to produce downloadable artifacts only.
+#
+# The sdist's setup.py never passes architecture flags to CMake, so on a
+# universal2 Python the wheel would be tagged universal2 while the compiled
+# libraries are host-arch only. _PYTHON_HOST_PLATFORM + MACOSX_DEPLOYMENT_TARGET
+# below force a single-arch tag that matches what CMake actually builds.
 
 on:
   workflow_dispatch:
@@ -43,25 +48,33 @@ jobs:
           brew install cmake boost
           echo "CMAKE_PREFIX_PATH=$(brew --prefix)" >> "$GITHUB_ENV"
 
-      - name: Build the wheel from source
+      - name: Build a single-architecture wheel
         run: |
+          major=$(sw_vers -productVersion | cut -d. -f1)
+          echo "DEPLOYMENT_TARGET=${major}.0" >> "$GITHUB_ENV"
+          export _PYTHON_HOST_PLATFORM="macosx-${major}.0-${{ matrix.arch }}"
+          export MACOSX_DEPLOYMENT_TARGET="${major}.0"
+          export ARCHFLAGS="-arch ${{ matrix.arch }}"
           python -m pip install --upgrade pip delocate
           python -m pip wheel --no-deps --no-binary ur-rtde \
             "ur-rtde==${UR_RTDE_VERSION}" --wheel-dir dist
+          wheel=$(ls dist/*.whl)
+          echo "built: $wheel"
+          case "$wheel" in
+            *universal2*) echo "wheel is universal2 but only ${{ matrix.arch }} was built"; exit 1 ;;
+            *"${{ matrix.arch }}.whl") ;;
+            *) echo "unexpected wheel tag: $wheel"; exit 1 ;;
+          esac
 
       - name: Bundle Homebrew libraries into the wheel
         run: delocate-wheel --verbose --wheel-dir wheelhouse dist/*.whl
 
-      - name: Check the wheel tag and bundled libraries
+      - name: Check bundled libraries and their minimum macOS
         run: |
-          wheel=$(ls wheelhouse/*.whl)
-          case "$wheel" in
-            *"${{ matrix.arch }}"*) ;;
-            *) echo "expected a ${{ matrix.arch }} wheel, got $wheel"; exit 1 ;;
-          esac
-          echo "wheel: $wheel"
           python - <<'PY'
-          import glob, pathlib, subprocess, sys, tempfile, zipfile
+          import glob, os, pathlib, re, subprocess, sys, tempfile, zipfile
+
+          target = os.environ["DEPLOYMENT_TARGET"]
           wheel = glob.glob("wheelhouse/*.whl")[0]
           with zipfile.ZipFile(wheel) as archive:
               binaries = [n for n in archive.namelist() if n.endswith((".so", ".dylib"))]
@@ -69,16 +82,25 @@ jobs:
                   sys.exit("wheel contains no compiled libraries")
               with tempfile.TemporaryDirectory() as tmp:
                   archive.extractall(tmp)
-                  leaked = []
+                  leaked, too_new = [], []
                   for name in binaries:
-                      out = subprocess.run(["otool", "-L", str(pathlib.Path(tmp, name))],
-                                           capture_output=True, text=True, check=True).stdout
-                      leaked += [line.strip() for line in out.splitlines()[1:]
+                      path = str(pathlib.Path(tmp, name))
+                      linked = subprocess.run(["otool", "-L", path], capture_output=True,
+                                              text=True, check=True).stdout
+                      leaked += [line.strip() for line in linked.splitlines()[1:]
                                  if "/homebrew/" in line.lower() or "/usr/local/opt/" in line]
+                      build = subprocess.run(["vtool", "-show-build", path], capture_output=True,
+                                             text=True, check=True).stdout
+                      for minos in re.findall(r"minos (\d+(?:\.\d+)*)", build):
+                          if tuple(map(int, minos.split("."))) > tuple(map(int, target.split("."))):
+                              too_new.append(f"{name} needs macOS {minos}, tag claims {target}")
           if leaked:
-              print("external dependencies:", *leaked, sep="\n  ")
+              print(*leaked, sep="\n")
               sys.exit("wheel still depends on Homebrew libraries")
-          print("bundled binaries:", binaries)
+          if too_new:
+              print(*too_new, sep="\n")
+              sys.exit("bundled library needs a newer macOS than the wheel tag")
+          print("ok:", wheel, binaries)
           PY
 
       - uses: actions/upload-artifact@v4

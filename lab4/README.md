@@ -75,6 +75,12 @@ Intel macs, bundles Boost into the wheel, then smoke-tests it on a clean runner 
 each architecture — install without build tools, import, API checks, and this
 lab's controller tests — before attaching it to a release.
 
+The wheels are single-architecture and tagged for the runner's macOS (currently
+15.0), so they need macOS 15 or newer but no Xcode, CMake, or Homebrew. The
+workflow also fails if a bundled Homebrew library requires a newer macOS than
+the tag claims, or if any binary still links outside the bundle. Older macOS
+must build locally, as described above.
+
 Maintainers, once per `ur_rtde` version:
 
 ```sh
