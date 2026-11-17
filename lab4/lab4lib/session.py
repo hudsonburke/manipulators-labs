@@ -71,7 +71,8 @@ class ControlSession:
         self._require_pose()
         state = self.robot.snapshot()
         if not state['initialized'] or state['busy']:
-            raise ValueError('Initialize successfully and wait for HOME before enabling.')
+            raise ValueError('Initialize successfully and wait for HOME before enabling. '
+                             f'Controller: {state["message"]}')
         if self.neutral is None or self.target is None:
             raise ValueError('Calibrate a neutral pose before enabling robot control.')
         self.robot.update_target(self.target, self.observed_at)

@@ -127,12 +127,16 @@ class RobotController:
         with self._condition:
             if self._closed:
                 return
+            stopping = self._enabled or self._busy or self._initialize_requested
             self._epoch += 1
             self._stop_requested |= self._enabled or self._busy
             self._busy |= self._enabled
             self._enabled = self._initialize_requested = False
             self._target = self._target_at = None
-            self._message = str(reason)
+            # Idle calls (e.g. every frame without a pose) must not erase the
+            # message that explains why a previous attempt failed.
+            if stopping:
+                self._message = str(reason)
             self._condition.notify_all()
 
     def snapshot(self):
