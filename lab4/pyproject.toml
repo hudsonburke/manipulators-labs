@@ -16,4 +16,5 @@ dependencies = [
 [tool.uv.sources]
 ur-rtde = [
     { path = "wheels/ur_rtde-1.6.5-cp312-cp312-macosx_15_0_arm64.whl", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+    { path = "wheels/ur_rtde-1.6.5-cp312-cp312-macosx_15_0_x86_64.whl", marker = "sys_platform == 'darwin' and platform_machine == 'x86_64'" },
 ]

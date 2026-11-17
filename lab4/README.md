@@ -318,8 +318,8 @@ that the CSV contains a successful trial, and the model cache is not included.
 - **`NotImplementedError` in Task 2:** implement `student.elbow_angle()`. Task 3
   stays blocked until it works.
 - **`uv sync` fails while building `ur_rtde` (macOS):** only Macs without a
-  matching wheel get here — the bundled wheels need macOS 15, Python 3.12, and
-  Apple Silicon (Intel support arrives with its wheel). Building from source
+  matching wheel get here — the bundled wheels need macOS 15 and Python 3.12.
+  Building from source
   needs Xcode command line tools (`xcode-select --install`), a `cmake` binary,
   and Boost with `system`, `thread`, and `program_options`. Homebrew is the usual
   source for the last two:
