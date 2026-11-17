@@ -5,10 +5,11 @@ name: ur_rtde macOS wheel
 # instead. Push a tag `ur-rtde-<version>` to attach the wheels to a release;
 # run the workflow manually to produce downloadable artifacts only.
 #
-# The sdist's setup.py never passes architecture flags to CMake, so on a
-# universal2 Python the wheel would be tagged universal2 while the compiled
-# libraries are host-arch only. _PYTHON_HOST_PLATFORM + MACOSX_DEPLOYMENT_TARGET
-# below force a single-arch tag that matches what CMake actually builds.
+# The sdist's setup.py passes no arch flags to CMake, and setuptools derives the
+# wheel tag from the interpreter (a universal2 Python on the runners), so the
+# wheel claims both architectures while only the host one is compiled. We check
+# the compiled binaries with lipo and then force a matching single-arch tag;
+# delocate otherwise refuses a universal2 wheel with one arch of libraries.
 
 on:
   workflow_dispatch:
@@ -48,23 +49,46 @@ jobs:
           brew install cmake boost
           echo "CMAKE_PREFIX_PATH=$(brew --prefix)" >> "$GITHUB_ENV"
 
-      - name: Build a single-architecture wheel
+      - name: Build the wheel from source
         run: |
           major=$(sw_vers -productVersion | cut -d. -f1)
           echo "DEPLOYMENT_TARGET=${major}.0" >> "$GITHUB_ENV"
+          echo "PLATFORM_TAG=macosx_${major}_0_${{ matrix.arch }}" >> "$GITHUB_ENV"
           export _PYTHON_HOST_PLATFORM="macosx-${major}.0-${{ matrix.arch }}"
           export MACOSX_DEPLOYMENT_TARGET="${major}.0"
           export ARCHFLAGS="-arch ${{ matrix.arch }}"
-          python -m pip install --upgrade pip delocate
+          python -m pip install --upgrade pip wheel delocate
+          python -c "import sysconfig; print('build platform:', sysconfig.get_platform())"
           python -m pip wheel --no-deps --no-binary ur-rtde \
             "ur-rtde==${UR_RTDE_VERSION}" --wheel-dir dist
-          wheel=$(ls dist/*.whl)
-          echo "built: $wheel"
-          case "$wheel" in
-            *universal2*) echo "wheel is universal2 but only ${{ matrix.arch }} was built"; exit 1 ;;
-            *"${{ matrix.arch }}.whl") ;;
-            *) echo "unexpected wheel tag: $wheel"; exit 1 ;;
-          esac
+          ls -l dist
+
+      - name: Force the wheel tag to the compiled architecture
+        run: |
+          set -euo pipefail
+          wheel_file=$(ls dist/*.whl)
+          echo "built: $wheel_file (tagging as ${PLATFORM_TAG})"
+          python - "$wheel_file" "${{ matrix.arch }}" <<'PY'
+          import pathlib, subprocess, sys, tempfile, zipfile
+          wheel, arch = sys.argv[1], sys.argv[2]
+          with zipfile.ZipFile(wheel) as archive:
+              binaries = [n for n in archive.namelist() if n.endswith((".so", ".dylib"))]
+              if not binaries:
+                  sys.exit("wheel contains no compiled libraries")
+              with tempfile.TemporaryDirectory() as tmp:
+                  archive.extractall(tmp)
+                  archs = set()
+                  for name in binaries:
+                      out = subprocess.run(["lipo", "-archs", str(pathlib.Path(tmp, name))],
+                                           capture_output=True, text=True, check=True).stdout
+                      archs.update(out.split())
+          print("compiled architectures:", sorted(archs))
+          if archs != {arch}:
+              sys.exit(f"expected only {arch} binaries, found {sorted(archs)}")
+          PY
+          python -m wheel tags --platform-tag "$PLATFORM_TAG" dist/*.whl
+          find dist -name '*.whl' ! -name "*-${PLATFORM_TAG}.whl" -delete
+          ls -l dist
 
       - name: Bundle Homebrew libraries into the wheel
         run: delocate-wheel --verbose --wheel-dir wheelhouse dist/*.whl
@@ -133,6 +157,16 @@ jobs:
         with:
           name: ur-rtde-${{ env.UR_RTDE_VERSION }}-${{ matrix.arch }}
           path: wheel
+
+      - name: Check the artifact is the expected single-architecture wheel
+        run: |
+          wheel=$(ls wheel/*.whl)
+          echo "artifact: $wheel"
+          case "$wheel" in
+            *universal2*) echo "artifact is universal2"; exit 1 ;;
+            *"${{ matrix.arch }}.whl") ;;
+            *) echo "unexpected wheel tag: $wheel"; exit 1 ;;
+          esac
 
       # No brew install here: the wheel must load on a runner without Boost.
       - name: Install the wheel without build tools
