@@ -1,0 +1,167 @@
+name: ur_rtde macOS wheel
+
+# Upstream publishes ur_rtde wheels for manylinux and win_amd64 only, so macOS
+# users would otherwise compile it locally (CMake + Boost). Build the wheel here
+# instead. Push a tag `ur-rtde-<version>` to attach the wheels to a release;
+# run the workflow manually to produce downloadable artifacts only.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "ur-rtde-*"
+
+permissions:
+  contents: write
+
+env:
+  UR_RTDE_VERSION: "1.6.5"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  build:
+    name: build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15        # Apple Silicon
+            arch: arm64
+          - runner: macos-15-intel  # Intel
+            arch: x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install CMake and Boost
+        run: |
+          brew install cmake boost
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix)" >> "$GITHUB_ENV"
+
+      - name: Build the wheel from source
+        run: |
+          python -m pip install --upgrade pip delocate
+          python -m pip wheel --no-deps --no-binary ur-rtde \
+            "ur-rtde==${UR_RTDE_VERSION}" --wheel-dir dist
+
+      - name: Bundle Homebrew libraries into the wheel
+        run: delocate-wheel --verbose --wheel-dir wheelhouse dist/*.whl
+
+      - name: Check the wheel tag and bundled libraries
+        run: |
+          wheel=$(ls wheelhouse/*.whl)
+          case "$wheel" in
+            *"${{ matrix.arch }}"*) ;;
+            *) echo "expected a ${{ matrix.arch }} wheel, got $wheel"; exit 1 ;;
+          esac
+          echo "wheel: $wheel"
+          python - <<'PY'
+          import glob, pathlib, subprocess, sys, tempfile, zipfile
+          wheel = glob.glob("wheelhouse/*.whl")[0]
+          with zipfile.ZipFile(wheel) as archive:
+              binaries = [n for n in archive.namelist() if n.endswith((".so", ".dylib"))]
+              if not binaries:
+                  sys.exit("wheel contains no compiled libraries")
+              with tempfile.TemporaryDirectory() as tmp:
+                  archive.extractall(tmp)
+                  leaked = []
+                  for name in binaries:
+                      out = subprocess.run(["otool", "-L", str(pathlib.Path(tmp, name))],
+                                           capture_output=True, text=True, check=True).stdout
+                      leaked += [line.strip() for line in out.splitlines()[1:]
+                                 if "/homebrew/" in line.lower() or "/usr/local/opt/" in line]
+          if leaked:
+              print("external dependencies:", *leaked, sep="\n  ")
+              sys.exit("wheel still depends on Homebrew libraries")
+          print("bundled binaries:", binaries)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ur-rtde-${{ env.UR_RTDE_VERSION }}-${{ matrix.arch }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+
+  smoke:
+    name: smoke ${{ matrix.arch }}
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ur-rtde-${{ env.UR_RTDE_VERSION }}-${{ matrix.arch }}
+          path: wheel
+
+      # No brew install here: the wheel must load on a runner without Boost.
+      - name: Install the wheel without build tools
+        run: |
+          python -m venv "$RUNNER_TEMP/smoke"
+          "$RUNNER_TEMP/smoke/bin/python" -m pip install --upgrade pip numpy
+          "$RUNNER_TEMP/smoke/bin/python" -m pip install --no-deps wheel/*.whl
+
+      - name: Verify it loads with no Homebrew dependencies
+        run: |
+          "$RUNNER_TEMP/smoke/bin/python" - <<'PY'
+          import json, pathlib, subprocess, sys
+          import rtde_control, rtde_receive
+
+          for module, names in (
+              (rtde_control.RTDEControlInterface,
+               ("moveJ", "servoJ", "stopJ", "servoStop", "isConnected", "isProgramRunning")),
+              (rtde_receive.RTDEReceiveInterface, ("getActualQ", "getActualQd")),
+          ):
+              missing = [name for name in names if not hasattr(module, name)]
+              if missing:
+                  sys.exit(f"{module.__name__} missing {missing}")
+          if rtde_control.RTDEControlInterface.FLAG_UPLOAD_SCRIPT is None:
+              sys.exit("missing FLAG_UPLOAD_SCRIPT")
+
+          extension = pathlib.Path(rtde_control.__file__)
+          linked = subprocess.run(["otool", "-L", str(extension)],
+                                  capture_output=True, text=True, check=True).stdout
+          leaked = [line.strip() for line in linked.splitlines()[1:]
+                    if "/homebrew/" in line.lower() or "/usr/local/opt/" in line]
+          if leaked:
+              print(*leaked, sep="\n")
+              sys.exit("installed extension links against Homebrew libraries")
+          print(json.dumps({"extension": str(extension), "links": "system only"}))
+          PY
+
+      - name: Run the lab controller tests against this wheel
+        working-directory: lab4
+        run: |
+          "$RUNNER_TEMP/smoke/bin/python" -m unittest discover -s tests -p 'test_controller.py' -v
+
+  release:
+    name: attach wheels to the tag
+    needs: [build, smoke]
+    if: startsWith(github.ref, 'refs/tags/ur-rtde-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.whl

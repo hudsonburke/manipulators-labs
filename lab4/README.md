@@ -68,6 +68,43 @@ run `xcode-select --install` and `brew install cmake boost` first, and expect a
 few minutes. Linux and x86_64 Windows download a prebuilt wheel. Run Task 3 with
 the extra selected: `uv run --extra robot python task3_control.py`.
 
+#### macOS wheel (skip the local C++ build)
+
+`.github/workflows/ur-rtde-macos-wheel.yml` builds `ur_rtde` for Apple Silicon and
+Intel macs, bundles Boost into the wheel, then smoke-tests it on a clean runner of
+each architecture — install without build tools, import, API checks, and this
+lab's controller tests — before attaching it to a release.
+
+Maintainers, once per `ur_rtde` version:
+
+```sh
+git tag ur-rtde-1.6.5
+git push origin ur-rtde-1.6.5
+```
+
+Students then download the wheel matching their platform from that release and
+install it into the lab environment, no compiler needed:
+
+```sh
+uv pip install ~/Downloads/ur_rtde-1.6.5-cp312-cp312-macosx_*.whl
+uv run --no-sync python task3_control.py
+```
+
+`--no-sync` keeps that wheel; a plain `uv run` re-syncs the `robot` extra from
+PyPI and would try to rebuild it.
+
+To make `uv sync --locked --extra robot` pick the release wheel automatically,
+add a platform-specific source and re-run `uv lock` once the release exists (uv
+fetches the wheel to resolve it, so this cannot be added before the build):
+
+```toml
+[tool.uv.sources]
+ur-rtde = [
+  { url = "https://github.com/hudsonburke/manipulators-labs/releases/download/ur-rtde-1.6.5/<arm64 wheel>", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+  { url = "https://github.com/hudsonburke/manipulators-labs/releases/download/ur-rtde-1.6.5/<x86_64 wheel>", marker = "sys_platform == 'darwin' and platform_machine == 'x86_64'" },
+]
+```
+
 `--camera 0` is the default device; add `--camera 1` (or another index) if the
 wrong camera opens. Allow camera access for your terminal in the operating
 system's privacy settings, and close other apps using the camera. The preview is
@@ -305,8 +342,10 @@ that the CSV contains a successful trial, and the model cache is not included.
   camera or robot; use PolyScope if you cannot reach the keyboard stop.
 - **`NotImplementedError` in Task 2:** implement `student.elbow_angle()`. Task 3
   stays blocked until it works.
-- **`uv sync` fails while building `ur_rtde` (macOS):** `ur-rtde` 1.6.5 has no
-  macOS wheels, so `uv sync --locked --extra robot` compiles it from source.
+- **`uv sync` fails while building `ur_rtde` (macOS):** install the prebuilt
+  macOS wheel from the `ur-rtde-*` release instead (see Setup) — it needs no
+  compiler. Only if you build locally: `ur-rtde` 1.6.5 has no macOS wheels, so
+  `uv sync --locked --extra robot` compiles it from source.
   The build needs Xcode command line tools (`xcode-select --install`), a `cmake`
   binary, and Boost with `system`, `thread`, and `program_options`. Homebrew is
   only the usual source for the last two:
