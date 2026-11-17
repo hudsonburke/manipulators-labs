@@ -103,7 +103,10 @@ docker compose up -d
 ```
 
 Open <http://localhost:6080/vnc.html>, accept the safety prompts, power on,
-release the brakes, and open PolyScope's Move tab. `task3_control.py` connects to
+release the brakes, and open PolyScope's Move tab. The compose file publishes
+`29999` and `30001`–`30004` on loopback because host-side `ur_rtde` needs the
+dashboard, the script-upload port (`30003`), and RTDE; if you change the port
+list, keep those. `task3_control.py` connects to
 `localhost` by default; `--host <name or IP>` selects another controller and
 `URSIM_HOST` changes the default, for example `--host 192.168.1.12`. Pass a host
 name or IP address, not a URL, and run only one controller against the robot. The
