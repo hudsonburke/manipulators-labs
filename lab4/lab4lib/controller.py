@@ -240,9 +240,16 @@ class RobotController:
                         raise RuntimeError("RTDE control connection lost")
                     now = time.monotonic()
                     if self._motion in ("starting", "home") and now >= home_deadline:
-                        raise RuntimeError("Initialization timed out before reaching HOME")
+                        raise RuntimeError(
+                            "Initialization timed out before reaching HOME "
+                            "(is the simulated robot powered on with brakes released?)")
                     if not self._control.isProgramRunning():
                         if self._motion == "starting":
+                            with self._condition:
+                                if epoch == self._epoch:
+                                    self._message = ("Waiting for URSim to start the control program: "
+                                                     "power the robot on, release the brakes, dismiss any "
+                                                     "PolyScope dialog, and keep it in Normal mode.")
                             continue
                         raise RuntimeError("URSim control program is not running")
                     if self._motion == "starting":
@@ -251,6 +258,9 @@ class RobotController:
                         self._motion = "home"
                         if self._control.moveJ(self._home.tolist(), self._speed, 0.5, True) is False:
                             raise RuntimeError("URSim rejected the move to HOME")
+                        with self._condition:
+                            if epoch == self._epoch:
+                                self._message = f"Control program running; moving to HOME at {self._speed:g} rad/s."
                     actual = _joints(self._receive.getActualQ(), "Received joints")
                     velocity = _joints(self._receive.getActualQd(), "Received joint speeds")
                     with self._condition:
@@ -258,7 +268,9 @@ class RobotController:
                     if self._motion == "home":
                         at_home = np.max(np.abs(actual - self._home)) <= 0.01
                         stationary = np.max(np.abs(velocity)) <= 0.02
-                        if at_home and stationary and self._control.getAsyncOperationProgress() < 0:
+                        # Arrival + standstill is the real requirement; the async
+                        # progress counter is not reliable across controller versions.
+                        if at_home and stationary:
                             with self._condition:
                                 if epoch == self._epoch and not self._closed:
                                     self._motion = None
