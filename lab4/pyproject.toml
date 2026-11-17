@@ -7,9 +7,13 @@ dependencies = [
     "numpy>=2.5.3",
     "opencv-contrib-python>=5.0.0.93",
     "mediapipe>=1.2.2",
+    "ur-rtde>=1.6.5",
 ]
 
-# Task 3 only. ur-rtde has no macOS wheels, so it stays out of the default sync
-# (Tasks 1-2) where it would otherwise trigger a C++ build on every Mac.
-[project.optional-dependencies]
-robot = ["ur-rtde>=1.6.5"]
+# ur-rtde publishes no macOS wheels, so wheels/ carries prebuilt ones built by
+# .github/workflows/ur-rtde-macos-wheel.yml; the marker picks the matching wheel
+# and every other platform resolves ur-rtde from PyPI.
+[tool.uv.sources]
+ur-rtde = [
+    { path = "wheels/ur_rtde-1.6.5-cp312-cp312-macosx_15_0_arm64.whl", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+]

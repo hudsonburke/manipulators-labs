@@ -110,7 +110,6 @@ above.
 Lab 4 has its own small Python 3.12 environment and native camera application.
 Follow [`lab4/README.md`](lab4/README.md) for setup, the three task scripts, and
 the simulator-only Docker route; do not run it in the Labs 2–3 devcontainer.
-Task 3 additionally needs the lab's `robot` extra.
 
 #### Docker
 

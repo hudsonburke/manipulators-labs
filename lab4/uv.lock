@@ -1,6 +1,10 @@
 version = 1
 revision = 3
 requires-python = "==3.12.*"
+resolution-markers = [
+    "platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "platform_machine != 'arm64' or sys_platform != 'darwin'",
+]
 
 [[package]]
 name = "absl-py"
@@ -134,11 +138,8 @@ dependencies = [
     { name = "mediapipe" },
     { name = "numpy" },
     { name = "opencv-contrib-python" },
-]
-
-[package.optional-dependencies]
-robot = [
-    { name = "ur-rtde" },
+    { name = "ur-rtde", version = "1.6.5", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'arm64' or sys_platform != 'darwin'" },
+    { name = "ur-rtde", version = "1.6.5", source = { path = "wheels/ur_rtde-1.6.5-cp312-cp312-macosx_15_0_arm64.whl" }, marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
 ]
 
 [package.metadata]
@@ -146,9 +147,9 @@ requires-dist = [
     { name = "mediapipe", specifier = ">=1.2.2" },
     { name = "numpy", specifier = ">=2.5.3" },
     { name = "opencv-contrib-python", specifier = ">=5.0.0.93" },
-    { name = "ur-rtde", marker = "extra == 'robot'", specifier = ">=1.6.5" },
+    { name = "ur-rtde", marker = "platform_machine != 'arm64' or sys_platform != 'darwin'", specifier = ">=1.6.5" },
+    { name = "ur-rtde", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'", path = "wheels/ur_rtde-1.6.5-cp312-cp312-macosx_15_0_arm64.whl" },
 ]
-provides-extras = ["robot"]
 
 [[package]]
 name = "matplotlib"
@@ -325,9 +326,23 @@ wheels = [
 name = "ur-rtde"
 version = "1.6.5"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "platform_machine != 'arm64' or sys_platform != 'darwin'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/79/11/5f3dc66a5ba608830ffa83bdaa8808562172b6332f8aaf9bdafeb22e2df2/ur_rtde-1.6.5.tar.gz", hash = "sha256:3d5b6c6bf73346b806d146f128537abd2afb1d769f4a9c8b3ef5a884fab0bcfa", size = 3428886, upload-time = "2026-08-09T07:52:33.765Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3a/6a/d61e5e016d6637b5c425ead983573caff143d91a2342e4fdd45a30b12f58/ur_rtde-1.6.5-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:0a9b39a82d731bf7b2cca91fd2218246c22331e4d060e287cc257352d24594a7", size = 4997458, upload-time = "2026-08-09T07:51:49.215Z" },
     { url = "https://files.pythonhosted.org/packages/69/28/d96a5ba6e759f010d61229d70fed508ef19fe89302d486b26c207c4086d6/ur_rtde-1.6.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f5aeddaba7b7ba99d9edb0e25c3a9ff8f7d5b5641aa4396a5380d884840b6870", size = 4922384, upload-time = "2026-08-09T07:51:51.352Z" },
     { url = "https://files.pythonhosted.org/packages/61/f6/d55fb42416633d6a4319dc2088430b107b6d28f3dcd3b8a3041f15ca9b03/ur_rtde-1.6.5-cp312-cp312-win_amd64.whl", hash = "sha256:e2fb0b71b9c9a5969695db29bafb1e22f6aac529595cf5001b3114890b34d8ba", size = 2573217, upload-time = "2026-08-09T07:51:53.036Z" },
+]
+
+[[package]]
+name = "ur-rtde"
+version = "1.6.5"
+source = { path = "wheels/ur_rtde-1.6.5-cp312-cp312-macosx_15_0_arm64.whl" }
+resolution-markers = [
+    "platform_machine == 'arm64' and sys_platform == 'darwin'",
+]
+wheels = [
+    { filename = "ur_rtde-1.6.5-cp312-cp312-macosx_15_0_arm64.whl", hash = "sha256:bdae67a9d92037f56085698ed76d9cd7c3503338fa9b474439e05353cc95141e" },
 ]

@@ -64,7 +64,7 @@ def main(argv=None):
     try:
         from lab4lib.controller import RobotController
     except ImportError as exc:
-        parser.error(f'{exc}. Run: uv sync --locked --extra robot')
+        parser.error(f'{exc}. Run: uv sync --locked')
     warning = demo_warning(host)
     if warning:
         print(warning, file=sys.stderr, flush=True)

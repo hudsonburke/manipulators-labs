@@ -10,7 +10,7 @@ try:
     from rtde_control import RTDEControlInterface
     from rtde_receive import RTDEReceiveInterface
 except ImportError as exc:
-    raise ImportError('ur_rtde is not installed; Task 3 needs the "robot" extra') from exc
+    raise ImportError('ur_rtde is not installed; run "uv sync --locked" in lab4') from exc
 
 import student_config as config
 

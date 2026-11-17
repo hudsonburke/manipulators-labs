@@ -28,7 +28,7 @@ only Task 3 connects a robot.
 |---|---|---|
 | `task1_landmarks.py` | Task 1: landmarks in the preview | run |
 | `task2_elbow_angle.py` | Task 2: elbow angle in the preview | run |
-| `task3_control.py` | Task 3: calibrate and drive URSim (or a UR controller with `--host`); needs the `robot` extra | run |
+| `task3_control.py` | Task 3: calibrate and drive URSim (or a UR controller with `--host`) | run |
 | `student.py` | `elbow_angle()` — your Task 2 implementation | **yes** |
 | `student_config.py` | gains, bounds, smoothing, shoulder switch | **yes** |
 | `report.md` | report template | **yes** |
@@ -56,60 +56,29 @@ uv supplies Python 3.12; do not run this lab from the repository-root
 environment. If the VS Code Python extension asks for an interpreter, pick
 `lab4/.venv/`.
 
-`uv sync --locked` installs what Tasks 1 and 2 need. Task 3 also needs the
-`robot` extra, because robot control uses `ur_rtde`:
-
-```sh
-uv sync --locked --extra robot
-```
-
-`ur-rtde` has no macOS wheels, so on a Mac that step compiles it from source:
-run `xcode-select --install` and `brew install cmake boost` first, and expect a
-few minutes. Linux and x86_64 Windows download a prebuilt wheel. Run Task 3 with
-the extra selected: `uv run --extra robot python task3_control.py`.
+`uv sync --locked` installs everything the three tasks need. `ur_rtde` publishes
+no macOS wheels, so `lab4/wheels/` carries prebuilt ones and `pyproject.toml`
+selects the matching wheel with a platform marker — on macOS 15 with Python 3.12
+nothing is compiled. Linux and x86_64 Windows get a wheel from PyPI. Older macOS
+or a different Python must build locally, as described below.
 
 #### macOS wheel (skip the local C++ build)
 
-`.github/workflows/ur-rtde-macos-wheel.yml` builds `ur_rtde` for Apple Silicon and
-Intel macs, bundles Boost into the wheel, then smoke-tests it on a clean runner of
-each architecture — install without build tools, import, API checks, and this
-lab's controller tests — before attaching it to a release.
+`.github/workflows/ur-rtde-macos-wheel.yml` compiles `ur_rtde` for Apple Silicon
+and Intel macs, bundles Boost into the wheel, then smoke-tests each wheel on a
+clean runner of that architecture — install without build tools, import, API
+checks, and this lab's controller tests. The wheels are single-architecture and
+tagged for the runner's macOS (currently 15.0), so they need macOS 15 or newer
+and Python 3.12; anything else must build locally, as described above. The
+workflow fails if a bundled Homebrew library needs a newer macOS than the tag
+claims, or if any binary still links outside the bundle.
 
-The wheels are single-architecture and tagged for the runner's macOS (currently
-15.0), so they need macOS 15 or newer but no Xcode, CMake, or Homebrew. The
-workflow also fails if a bundled Homebrew library requires a newer macOS than
-the tag claims, or if any binary still links outside the bundle. Older macOS
-must build locally, as described above.
+Maintainers, after a successful run: download the artifacts, copy the wheels into
+`lab4/wheels/`, update the `[tool.uv.sources]` entry in `lab4/pyproject.toml` if
+the file names changed, then re-run `uv lock` in `lab4` and commit both.
 
-Maintainers, once per `ur_rtde` version:
-
-```sh
-git tag ur-rtde-1.6.5
-git push origin ur-rtde-1.6.5
-```
-
-Students then download the wheel matching their platform from that release and
-install it into the lab environment, no compiler needed:
-
-```sh
-uv pip install ~/Downloads/ur_rtde-1.6.5-cp312-cp312-macosx_*.whl
-uv run --no-sync python task3_control.py
-```
-
-`--no-sync` keeps that wheel; a plain `uv run` re-syncs the `robot` extra from
-PyPI and would try to rebuild it.
-
-To make `uv sync --locked --extra robot` pick the release wheel automatically,
-add a platform-specific source and re-run `uv lock` once the release exists (uv
-fetches the wheel to resolve it, so this cannot be added before the build):
-
-```toml
-[tool.uv.sources]
-ur-rtde = [
-  { url = "https://github.com/hudsonburke/manipulators-labs/releases/download/ur-rtde-1.6.5/<arm64 wheel>", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
-  { url = "https://github.com/hudsonburke/manipulators-labs/releases/download/ur-rtde-1.6.5/<x86_64 wheel>", marker = "sys_platform == 'darwin' and platform_machine == 'x86_64'" },
-]
-```
+Students on a matching Mac do nothing extra: `uv sync --locked` picks the wheel,
+and `uv run python task3_control.py` uses it.
 
 `--camera 0` is the default device; add `--camera 1` (or another index) if the
 wrong camera opens. Allow camera access for your terminal in the operating
@@ -153,7 +122,7 @@ stack first; both publish the same simulator ports.
 
 #### Real controller demo (instructor only)
 
-`uv run --extra robot python task3_control.py --host <robot IP>` uploads the same
+`uv run python task3_control.py --host <robot IP>` uploads the same
 URScript control program and streams `servoJ` setpoints to a physical UR
 controller instead of URSim. Everything else — keys, bounds, watchdog, evidence —
 is unchanged. This path has only been exercised against the simulator.
@@ -243,7 +212,7 @@ Generated file: `outputs/task2_preview.jpg`.
 
 ## Task 3 — Move the UR5 using that angle
 
-Run `uv run --extra robot python task3_control.py` with URSim started as
+Run `uv run python task3_control.py` with URSim started as
 described above.
 
 1. `student.joint_targets()` maps the change from a calibrated neutral pose onto
@@ -348,21 +317,18 @@ that the CSV contains a successful trial, and the model cache is not included.
   camera or robot; use PolyScope if you cannot reach the keyboard stop.
 - **`NotImplementedError` in Task 2:** implement `student.elbow_angle()`. Task 3
   stays blocked until it works.
-- **`uv sync` fails while building `ur_rtde` (macOS):** install the prebuilt
-  macOS wheel from the `ur-rtde-*` release instead (see Setup) — it needs no
-  compiler. Only if you build locally: `ur-rtde` 1.6.5 has no macOS wheels, so
-  `uv sync --locked --extra robot` compiles it from source.
-  The build needs Xcode command line tools (`xcode-select --install`), a `cmake`
-  binary, and Boost with `system`, `thread`, and `program_options`. Homebrew is
-  only the usual source for the last two:
+- **`uv sync` fails while building `ur_rtde` (macOS):** only Macs without a
+  matching wheel get here — the bundled wheels need macOS 15, Python 3.12, and
+  Apple Silicon (Intel support arrives with its wheel). Building from source
+  needs Xcode command line tools (`xcode-select --install`), a `cmake` binary,
+  and Boost with `system`, `thread`, and `program_options`. Homebrew is the usual
+  source for the last two:
   `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
   then `brew install cmake boost`. Without Homebrew, install CMake from
   <https://cmake.org/download/> and a Boost build, then point the build at it:
-  `CMAKE_PREFIX_PATH=/path/to/boost uv sync --locked --extra robot`. Tasks 1 and
-  2 never build it: plain `uv sync --locked` is enough for them.
-- **Task 3 reports `ur_rtde is not installed`:** the `robot` extra is not in the
-  environment. Run `uv sync --locked --extra robot`, then
-  `uv run --extra robot python task3_control.py`.
+  `CMAKE_PREFIX_PATH=/path/to/boost uv sync --locked`.
+- **Task 3 reports `ur_rtde is not installed`:** the environment is out of date.
+  Run `uv sync --locked` in `lab4`, then `uv run python task3_control.py`.
 - **Model download/import failure:** read the terminal, confirm
   `uv sync --locked` finished in `lab4`, and check internet access.
 - **Initialize fails:** make sure Docker and URSim are running with the robot
