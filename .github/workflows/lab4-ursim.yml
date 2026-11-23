@@ -5,10 +5,12 @@ on:
     paths:
       - 'lab4/**'
       - '.github/workflows/lab4-ursim.yml'
+      - '.devcontainer/**'
   pull_request:
     paths:
       - 'lab4/**'
       - '.github/workflows/lab4-ursim.yml'
+      - '.devcontainer/**'
   workflow_dispatch:
 
 permissions:
@@ -17,7 +19,7 @@ permissions:
 jobs:
   ursim:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: lab4
@@ -78,12 +80,66 @@ jobs:
         run: |
           set -o pipefail
           # GUI setup may already power on/release brakes through simulator preparation.
-          # Only this step uploads the control script and commands simulated joint motion.
+          # This native scenario uploads its control script and commands simulated motion.
           # The script bounds readiness and each assertion; timeout also bounds native calls.
           timeout --signal=TERM --kill-after=15s 480s \
             uv run python tests/ursim_smoke.py 2>&1 | tee ci-artifacts/motion.log
           uv run python check_setup.py --robot --host 127.0.0.1 \
             2>&1 | tee ci-artifacts/robot-diagnostic.log
+      - name: Verify actual Codespaces image and internal simulator DNS
+        timeout-minutes: 8
+        run: |
+          set -o pipefail
+          docker build --file ../.devcontainer/Dockerfile --tag lab4-devcontainer-ci ../.devcontainer \
+            2>&1 | tee ci-artifacts/devcontainer-build.log
+          container="$(docker compose ps -q ursim_cb3)"
+          test -n "$container"
+          mapfile -t networks < <(docker inspect \
+            --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}' \
+            "$container" | sed '/^$/d')
+          test "${#networks[@]}" -eq 1
+          # Reuse the real compose service, with no additional simulator or ports.
+          # Keep the checkout read-only and install a disposable project .venv.
+          timeout --signal=TERM --kill-after=15s 420s docker run --rm \
+            --network "${networks[0]}" \
+            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/workspace,readonly" \
+            --tmpfs /workspace/lab4/.venv:exec,size=2g \
+            --workdir /workspace/lab4 \
+            --env UV_CACHE_DIR=/tmp/lab4-uv-cache --env UV_LINK_MODE=copy \
+            lab4-devcontainer-ci bash -lc '
+              set -eu
+              uv sync --locked --extra browser --python 3.12
+              uv run --extra browser python -c "import cv2, mediapipe, aiohttp"
+              uv run --extra browser python check_setup.py --robot --host ursim_cb3
+            ' 2>&1 | tee ci-artifacts/devcontainer-doctor.log
+      - name: Install optional browser environment and pinned Chromium
+        timeout-minutes: 5
+        run: |
+          set -o pipefail
+          uv sync --locked --extra browser --python 3.12 \
+            2>&1 | tee ci-artifacts/browser-install.log
+          # Playwright stays in uv's isolated --with environment, not student manifests.
+          uv run --extra browser --with playwright==1.58.0 \
+            python -m playwright install --with-deps chromium \
+            2>&1 | tee ci-artifacts/chromium-install.log
+      - name: Verify browser protocol checks explicitly
+        timeout-minutes: 3
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=10s 150s \
+            uv run --extra browser python -m unittest discover -s tests -p browser_checks.py -v \
+            2>&1 | tee ci-artifacts/browser-checks.log
+      - name: Verify real Chromium camera and URSim joint motion
+        timeout-minutes: 7
+        env:
+          LAB4_URSIM_CI: '1'
+        run: |
+          set -o pipefail
+          # Existing native controller has completed its finally/close before this starts.
+          # Real MediaPipe fixture/model + fake camera device, not mocked inference.
+          timeout --signal=TERM --kill-after=15s 360s \
+            uv run --extra browser --with playwright==1.58.0 python tests/browser_smoke.py \
+            2>&1 | tee ci-artifacts/browser-motion.log
       - name: Collect simulator diagnostics
         if: always()
         run: |
@@ -124,6 +180,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lab4-ursim-${{ github.run_id }}-${{ github.run_attempt }}
-          path: lab4/ci-artifacts/
+          path: |
+            lab4/ci-artifacts/
+            !lab4/ci-artifacts/browser/*.y4m
           if-no-files-found: warn
           retention-days: 14

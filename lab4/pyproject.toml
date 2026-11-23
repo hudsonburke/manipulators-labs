@@ -14,6 +14,12 @@ dependencies = [
     "ur-rtde>=1.6.5",
 ]
 
+[project.optional-dependencies]
+browser = [
+    "aiohttp>=3.13,<4",
+    "pillow>=11",
+]
+
 [tool.uv]
 # Keep wheel-only upstream packages resolvable on every native host tested in CI.
 required-environments = [

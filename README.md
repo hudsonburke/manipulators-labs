@@ -6,11 +6,11 @@ You will be using a virtual UR5 robot, which is a 6-axis robotic arm made by Uni
 
 ## Environment Setup
 
-**Lab 4 uses a separate native-host Python environment and an OpenCV camera
-window. Start with [`lab4/README.md`](lab4/README.md), not the root `uv sync` or
-Codespaces instructions below.** On Windows, Lab 4 Python runs in native
-PowerShell, not WSL. Docker runs only URSim for Lab 4 Task 3; Tasks 1–2 need
-nothing else.
+**Lab 4 uses a separate Python environment. Its primary path is a native OpenCV
+camera window; an optional Codespaces fallback takes camera frames through your
+browser. Start with [`lab4/README.md`](lab4/README.md), not the root `uv sync`.**
+On Windows the native path uses PowerShell, not WSL. The fallback needs no local
+Python/Docker installation and uploads frames to your private Codespace.
 
 For **Labs 2–3**, you can use GitHub Codespaces or a [local setup](#Local-Setup).
 Codespaces also automatically starts URSim with Docker Compose. The setup
@@ -107,9 +107,10 @@ including secure WebSocket forwarding, and task instructions are in
 [`lab3/README.md`](lab3/README.md). Lab 2 continues to use URSim as described
 above.
 
-Lab 4 has its own small Python 3.12 environment and native camera application.
-Follow [`lab4/README.md`](lab4/README.md) for setup, the three task scripts, and
-the simulator-only Docker route; do not run it in the Labs 2–3 devcontainer.
+Lab 4 has its own Python 3.12 environment. Follow
+[`lab4/README.md`](lab4/README.md) for the native camera scripts or the optional
+[Codespaces browser camera](lab4/README.md#optional-fallback--codespaces-browser-camera)
+route; the root environment does not install Lab 4's dependencies.
 
 #### Docker
 

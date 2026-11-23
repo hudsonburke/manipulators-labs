@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lab 4 — Browser camera</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Lab 4 browser camera</h1>
+      <p>Optional Codespaces fallback. Python tracking and robot control run in your Codespace; this page supplies camera frames. Use URSim only, never a physical robot.</p>
+      <p class="notice">Open the <strong>private HTTPS forwarded port in its own browser tab</strong>, not the VS Code preview. Camera images are sent to your Codespace while the camera is on. Evidence is saved only when requested.</p>
+    </header>
+    <section aria-labelledby="camera-heading">
+      <h2 id="camera-heading">Camera and task</h2>
+      <div class="controls">
+        <button id="start-camera" type="button">Start camera</button>
+        <button id="stop-camera" type="button" disabled>Stop camera</button>
+        <label for="task">Task</label>
+        <select id="task">
+          <option value="1">Task 1 - Landmarks</option>
+          <option value="2">Task 2 - Elbow angle</option>
+          <option value="3">Task 3 - URSim control</option>
+        </select>
+      </div>
+      <p id="connection" role="status">Disconnected — camera off. Start camera to connect.</p>
+      <p id="error" role="alert"></p>
+      <figure>
+        <img id="preview" alt="Annotated camera preview from Python tracking" width="640" height="480" hidden>
+        <p id="preview-placeholder">Your annotated, unmirrored camera preview will appear here.</p>
+        <figcaption>At most 640 × 480, approximately 10 frames/s. Tracking pauses when fresh poses are unavailable.</figcaption>
+      </figure>
+    </section>
+    <section aria-labelledby="robot-heading">
+      <h2 id="robot-heading">URSim controls</h2>
+      <p>Task 3: HOME, wait for At HOME, then Calibrate with a tracked pose, then Enable. Missing tracking pauses motion; fresh tracking resumes only while enabled. Stop disarms until you explicitly enable again.</p>
+      <div id="robot-actions" class="controls" role="group" aria-label="Robot actions">
+        <span id="motion-mode">Camera off</span>
+        <button id="initialize" type="button" disabled>HOME</button>
+        <button id="calibrate" type="button" disabled>Calibrate</button>
+        <button id="enable" type="button" disabled>Enable</button>
+        <button id="stop" class="stop" type="button" disabled>Stop</button>
+      </div>
+      <p class="shortcuts">Keyboard: <kbd>I</kbd> HOME, <kbd>C</kbd> Calibrate, <kbd>E</kbd> Enable (Task 3); <kbd>Space</kbd> Stop; <kbd>Q</kbd> or <kbd>Esc</kbd> stop camera and disconnect. Shortcuts are ignored in editable controls.</p>
+      <p>After editing <code>student.py</code> or <code>student_config.py</code>, stop the camera and restart the Python server, then refresh this page. Python files are not reloaded automatically.</p>
+      <h3>Live state</h3>
+      <pre id="status" tabindex="0" aria-label="Live robot and tracking state">Disconnected. Robot control is disarmed.</pre>
+    </section>
+    <section aria-labelledby="evidence-heading">
+      <h2 id="evidence-heading">Evidence</h2>
+      <button id="save" type="button" disabled>Save evidence</button>
+      <p>Saves the selected task's annotated preview; Task 3 also saves its control CSV. Download the files below before ending your Codespace.</p>
+      <div id="downloads" aria-live="polite"></div>
+    </section>
+  </main>
+</body>
+</html>

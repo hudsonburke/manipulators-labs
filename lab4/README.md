@@ -14,10 +14,13 @@ Joint bounds and rate limits do not make motion physically safe, and the
 keyboard stop is not an emergency stop. The only hardware use is the instructor
 demo described under Setup, which selects a real controller with `--host`.
 
-Python reads your camera directly. Images stay on your computer, are not
-uploaded, and are never recorded automatically. Pressing the current task's
-number key saves one annotated image; Task 3 also saves a CSV. Check the
-background of anything you save before submitting. Quitting releases the camera.
+On the **native path**, Python reads your camera directly and images stay on
+your computer. The optional **Codespaces browser fallback uploads camera frames
+to your private Codespace** for Python/MediaPipe processing and returns annotated
+previews. Use it only if you consent to that transfer; keep its forwarded ports
+private. Neither path records images automatically. Saving evidence writes one
+annotated image; Task 3 also saves a CSV. Check the background before saving or
+submitting. Quitting/Stop camera releases the camera.
 
 ## What you run
 
@@ -29,6 +32,7 @@ only Task 3 connects a robot.
 | `task1_landmarks.py` | Task 1: landmarks in the preview | run |
 | `task2_elbow_angle.py` | Task 2: elbow angle in the preview | run |
 | `task3_control.py` | Task 3: calibrate and drive URSim (or a UR controller with `--host`) | run |
+| `web_lab.py` | optional browser camera fallback for Tasks 1–3 | run |
 | `student.py` | `elbow_angle()` — your Task 2 implementation | **yes** |
 | `student_config.py` | gains, bounds, smoothing, shoulder switch | **yes** |
 | `report.md` | report template | **yes** |
@@ -38,10 +42,13 @@ only Task 3 connects a robot.
 
 ## Setup
 
-Use **VS Code on your computer**, with the repository open as a normal folder —
-not a Dev Container or Codespace — and run the camera from a native terminal (on
-Windows, PowerShell rather than WSL). Install
-[uv](https://docs.astral.sh/uv/getting-started/installation/).
+### Primary path — native camera
+
+Use **VS Code on your computer**, with the repository open as a normal folder,
+and a native terminal (on Windows, PowerShell rather than WSL). These native
+camera scripts do not run in a headless Dev Container/Codespace; use the
+[browser fallback](#optional-fallback--codespaces-browser-camera) there instead.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/).
 Use an up-to-date uv; CI pins **0.13.9**. Run `uv --version`; if an older uv
 rejects the lock format/settings, update with `uv self update` for a standalone
 install, or your package manager's upgrade command.
@@ -109,8 +116,82 @@ system's privacy settings, and close other apps using the camera. The preview is
 **not mirrored**: MediaPipe's *left* is your anatomical left.
 
 The first run downloads the MediaPipe Pose Landmarker Lite model (about 6 MB)
-into `models/`; later runs use the cache. Delete that file if the app reports it
-is corrupt. The model is not submitted.
+into `lab4lib/models/`; later runs use the cache. Delete that file if the app
+reports it is corrupt. The model is not submitted.
+
+### Optional fallback — Codespaces browser camera
+
+Use this when native camera/RTDE installation or local Docker is a blocker.
+Your laptop needs only a camera and a supported desktop browser; Python,
+MediaPipe, your `student.py`, and URSim run in the Codespace. Native setup above
+remains the primary path. The browser fallback accepts only the supplied
+simulator hosts, not physical robot addresses.
+
+1. Create a Codespace from this repository's current `main`, or rebuild an
+   existing Codespace to pick up the updated Dev Container image/configuration.
+   Wait for setup to finish. A **4-core machine is recommended** for URSim and
+   MediaPipe together; stop the Codespace when finished to limit usage charges.
+2. In **Ports**, open **URSim noVNC** (`ursim_cb3:6080`) in your browser and append
+   `/vnc.html` to its forwarded URL. Keep the port **Private**. Choose **Program
+   Robot**, load/confirm the safety configuration if prompted, initialize power,
+   release brakes, and open the Move tab as described
+   [below](#ursim-for-task-3). **Do not run `lab4/docker compose up` here:** the
+   Dev Container already starts URSim.
+3. In the Codespace terminal:
+
+   ```sh
+   cd /workspace/lab4
+   uv sync --locked --extra browser
+   uv run --no-sync python check_setup.py --robot --host ursim_cb3
+   uv run --no-sync python web_lab.py --host ursim_cb3
+   ```
+
+   Fix any failed setup check before Task 3. Use `ursim_cb3` for the internal
+   robot connection, **not** its forwarded HTTPS/VNC URL. The root `uv sync`
+   does not install the separate Lab 4 environment. Close other Task 3/Lab 2
+   control processes first; the browser ownership lock applies to this server,
+   not to competing programs.
+4. Open **Lab 4 browser camera**, port **8000**, using **Open in Browser** in
+   Ports. Confirm visibility is **Private**; do not make either port public.
+   Open the forwarded **HTTPS URL as its own browser tab**, not VS Code's
+   embedded preview. Click **Start camera**, allow camera access for that site
+   and your browser in the OS settings, then select Task 1, 2, or 3.
+5. Follow the same exercises below. Task 2 still requires your implementation
+   of `student.elbow_angle()`. **After editing Python/config files, Stop camera,
+   stop the server with Ctrl+C, and rerun the last command**, then refresh and
+   reconnect. The running Python process does not reload edits.
+6. For Task 3: **HOME → wait for At HOME → Calibrate → Enable**. Keep your left
+   shoulder, elbow, and wrist visible. Use **Stop**/**Space** to disarm; use
+   **Stop camera** before leaving. Keep the camera page visible; browser
+   throttling/background suspension and slow networks can pause tracking.
+   View URSim in a second visible window if needed. Only one browser tab can
+   own the controller; close/stop the first before opening another.
+7. **Save evidence** writes the same `outputs/taskN_preview.jpg` and Task 3
+   CSV as the native scripts; download links also appear in the page. Save
+   each task separately. Edit `report.md` in the Codespace, then package with
+   `uv run --no-sync python submit.py` and download `lab4/submission.zip` from
+   VS Code's Explorer for Canvas. The images/CSV are already on the server;
+   downloaded copies need not be uploaded back.
+
+Use `--no-sync` after the explicit browser sync (or include `--extra browser`
+on subsequent `uv run` commands), so uv does not remove the optional web packages.
+No local Python, Docker, VNC application, RTDE port forwarding, or desktop
+OpenCV window is needed for this route. Ports default to private in Codespaces;
+the Dev Container's port labels are not authentication—verify visibility.
+
+The browser sends at most 640 × 480 JPEGs, around 10 fps, with one frame in
+flight. All pose calculation stays in the Codespace; the robot worker remains
+125 Hz there. A server-issued frame credit bounds capture/transport freshness;
+delayed frames are dropped rather than queued as new targets. Missing tracking
+pauses following and fresh tracking resumes while armed. **Stop, camera stop,
+or browser disconnect disarms**; reconnecting never enables automatically and
+requires a new HOME/calibration/enable sequence. Network loss first triggers the
+worker's 0.75-second stale-target pause; connection cleanup then disarms.
+
+For diagnosis, send the terminal setup/server output and live controller status,
+not a camera image. If an older Codespace has no 8000 port, rebuild/restart the
+container or forward `8000` manually; no camera prompt usually means an embedded
+preview, non-HTTPS URL, denied site/OS permission, or another app using the camera.
 
 ### URSim for Task 3
 
@@ -385,9 +466,9 @@ that the CSV contains a successful trial, and the model cache is not included.
 
 - **No camera / wrong camera:** check OS camera permissions for your terminal,
   close other camera apps, and try another `--camera` index.
-- **No preview window:** use a desktop terminal — not WSL, Codespaces, SSH
-  without a desktop, or a Dev Container. Use the Lab 4 environment (GUI OpenCV),
-  not a headless OpenCV package.
+- **No native preview window:** use a desktop terminal and the Lab 4 environment
+  (GUI OpenCV), not WSL/SSH/headless OpenCV. In Codespaces or a headless Dev
+  Container, use the [browser fallback](#optional-fallback--codespaces-browser-camera).
 - **Keys do nothing:** focus the OpenCV window. Focus changes do not stop the
   camera or robot; use PolyScope if you cannot reach the keyboard stop.
 - **`NotImplementedError` in Task 2:** implement `student.elbow_angle()`. Task 3
@@ -416,8 +497,8 @@ that the CSV contains a successful trial, and the model cache is not included.
   `uv sync --locked` to create a new one. Do not delete `student.py` or your report.
 - **Unsupported Mac / source-build failure:** the supplied wheels require
   macOS 15 and CPython 3.12. The locked source selection does not fall back to
-  compilation. Use a supported machine/environment; a source build requires
-  separate dependency/source configuration and is not the student install path.
+  compilation. Use a supported native environment or the browser fallback;
+  a source build is not the student install path.
 - **Linux `libEGL.so.1` / `libGLESv2.so.2` missing:** MediaPipe loads native
   image code lazily, so `import mediapipe` alone can succeed before this failure.
   On Ubuntu/Debian, install the system runtimes with `sudo apt-get update` then
@@ -459,11 +540,24 @@ that the CSV contains a successful trial, and the model cache is not included.
   MediaPipe Tasks API, Task 3 CLI startup, and deterministic tests.
 - `.github/workflows/lab4-ursim.yml`: disposable Ubuntu/Compose URSim; powers on
   the **simulator only**, starts away from HOME, checks measured HOME/servo motion,
-  tracking pause/resume, watchdog, and explicit stop. Uploads logs on failure.
+  tracking pause/resume, watchdog, and explicit stop. It also builds the Dev
+  Container image/checks its internal simulator connection, then exercises the
+  actual browser page with a synthetic camera, MediaPipe, evidence downloads,
+  session ownership/disconnection, and measured URSim motion. Browser-only
+  protocol/security tests run with the optional extra. Logs/screenshots are
+  uploaded for diagnosis.
+
+The browser smoke test first verifies the unchanged student exercise is blocked.
+For motion it substitutes configurable constant **test-only student outputs**,
+not an elbow-angle solution; real MediaPipe must still detect the fixture pose.
+The public test image comes from MediaPipe's sample assets, never a user camera.
 
 Both run for Lab 4 pushes/PRs and support manual dispatch. Hosted Windows runners
 already include Visual C++ runtimes, so a pass does not prove bare-Windows DLL
-availability. Neither workflow tests a laptop camera or Docker Desktop networking.
+availability. CI does not test a laptop camera, Docker Desktop emulation,
+hosted Codespaces authentication/forwarding, browser permission prompts on each
+OS, or school network policy. Use the native route if uploading frames is not
+acceptable.
 
 ## References
 
@@ -473,3 +567,5 @@ availability. Neither workflow tests a laptop camera or Docker Desktop networkin
 - [uv project environment selection](https://docs.astral.sh/uv/concepts/projects/run/)
 - [MediaPipe release files and dependencies](https://pypi.org/project/mediapipe/#files)
 - [UR controller interfaces and ports](https://www.universal-robots.com/articles/ur/interface-communication/overview-of-client-interfaces/)
+- [Codespaces port forwarding and private visibility](https://docs.github.com/en/codespaces/developing-in-a-codespace/forwarding-ports-in-your-codespace)
+- [Browser camera access and secure contexts](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)

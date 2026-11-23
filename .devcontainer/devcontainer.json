@@ -5,15 +5,21 @@
   "workspaceFolder": "/workspace",
   "remoteUser": "vscode",
   "forwardPorts": [
-    6080,
-    5900,
-    30004,
-    30002,
-    29999,
+    "ursim_cb3:6080",
+    "ursim_cb3:5900",
+    "ursim_cb3:30004",
+    "ursim_cb3:30002",
+    "ursim_cb3:29999",
+    8000,
     52000,
     53000
   ],
   "portsAttributes": {
+    "8000": {
+      "label": "Lab 4 browser camera (open in browser)",
+      "protocol": "http",
+      "onAutoForward": "notify"
+    },
     "6080": {
       "label": "URSim noVNC (open /vnc.html)",
       "protocol": "http",
