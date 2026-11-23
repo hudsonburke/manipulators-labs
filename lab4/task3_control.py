@@ -36,10 +36,10 @@ def status_lines(session, message, processing_ms):
         'Actual q1..q6 [rad]: ' + joints(state['actual_q']),
         f"URSim: initialized={state['initialized']} enabled={state['enabled']} "
         f"busy={state['busy']} | {processing_ms:.0f} ms read + processing",
-        state['message'],
+        'Controller: ' + state['message'],
         'I: HOME | C: calibrate | E: enable | Space/S: stop',
         '3: save Task 3 evidence | Keys work while this window is focused',
-        'Action: ' + session.feedback,
+        'Last action: ' + session.feedback,
     ]
 
 

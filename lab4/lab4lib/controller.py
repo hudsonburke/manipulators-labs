@@ -1,6 +1,7 @@
 """Opt-in, simulation-only RTDE control; the worker owns every driver call."""
 
 import math
+import sys
 import threading
 import time
 
@@ -10,7 +11,10 @@ try:
     from rtde_control import RTDEControlInterface
     from rtde_receive import RTDEReceiveInterface
 except ImportError as exc:
-    raise ImportError('ur_rtde is not installed; run "uv sync --locked" in lab4') from exc
+    raise ImportError(
+        f'Cannot load ur-rtde modules with {sys.executable}: {exc}. '
+        'Run "uv sync --locked" and "uv run python check_setup.py" in lab4.'
+    ) from exc
 
 import student_config as config
 
@@ -241,10 +245,18 @@ class RobotController:
                         home_deadline = time.monotonic() + INITIALIZATION_TIMEOUT
                         self._motion = "starting"
                         if self._receive is None:
+                            with self._condition:
+                                if epoch == self._epoch:
+                                    self._message = f"Connecting RTDE feedback to {self._host}:30004."
                             self._receive = RTDEReceiveInterface(self._host, self._frequency)
                     if self._cancelled(epoch):
                         continue
                     if initialize and self._control is None:
+                        with self._condition:
+                            if epoch == self._epoch:
+                                self._message = (
+                                    f"Connecting RTDE control to {self._host}; uploading script on port 30003."
+                                )
                         self._control = RTDEControlInterface(self._host, self._frequency, CONTROL_FLAGS)
                     if self._receive is None:
                         continue

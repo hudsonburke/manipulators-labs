@@ -42,6 +42,9 @@ Use **VS Code on your computer**, with the repository open as a normal folder �
 not a Dev Container or Codespace — and run the camera from a native terminal (on
 Windows, PowerShell rather than WSL). Install
 [uv](https://docs.astral.sh/uv/getting-started/installation/).
+Use an up-to-date uv; CI pins **0.13.9**. Run `uv --version`; if an older uv
+rejects the lock format/settings, update with `uv self update` for a standalone
+install, or your package manager's upgrade command.
 
 From the repository root:
 
@@ -49,29 +52,49 @@ From the repository root:
 cd lab4
 uv python install 3.12
 uv sync --locked
+uv run --no-sync python check_setup.py
 uv run python task1_landmarks.py
 ```
 
-uv supplies Python 3.12; do not run this lab from the repository-root
-environment. If the VS Code Python extension asks for an interpreter, pick
-`lab4/.venv/`.
+Use the **same native terminal and Lab 4 environment for every task**. Do not use
+bare `python`, a notebook kernel, or VS Code's Run button with the Labs 1–3/root
+interpreter. `uv run` from `lab4` selects `lab4/.venv`; the setup check prints the
+exact interpreter path, Python version, architecture, package version, and native
+import results. Stop if `uv sync --locked` fails—Tasks 1/2 opening does not prove
+that the RTDE dependency installed.
 
-`uv sync --locked` installs everything the three tasks need. `ur_rtde` publishes
-no macOS wheels, so `lab4/wheels/` carries prebuilt ones and `pyproject.toml`
-selects the matching wheel with a platform marker — on macOS 15 with Python 3.12
-nothing is compiled. Linux and x86_64 Windows get a wheel from PyPI. Older macOS
-or a different Python must build locally, as described below.
+If VS Code asks for an interpreter, select `lab4/.venv/bin/python` on macOS/Linux
+or `lab4\.venv\Scripts\python.exe` on Windows. Selecting it in VS Code does not
+change an already-open terminal's interpreter. No environment activation or
+separate `pip install` is needed when using the commands above.
 
-#### macOS wheel (skip the local C++ build)
+| Native platform | Lab environment |
+|---|---|
+| Windows x64 | CPython 3.12, RTDE wheel from PyPI; use native PowerShell, not WSL |
+| Apple Silicon Mac | macOS 15+, ARM64 CPython 3.12, bundled RTDE wheel |
+| Intel Mac | macOS 15+, x86_64 CPython 3.12, bundled RTDE wheel; the lock selects older compatible MediaPipe/NumPy/OpenCV |
+| Linux x86_64 desktop | CPython 3.12, RTDE wheel from PyPI |
 
-`.github/workflows/ur-rtde-macos-wheel.yml` compiles `ur_rtde` for Apple Silicon
-and Intel macs, bundles Boost into the wheel, then smoke-tests each wheel on a
-clean runner of that architecture — install without build tools, import, API
-checks, and this lab's controller tests. The wheels are single-architecture and
-tagged for the runner's macOS (currently 15.0), so they need macOS 15 or newer
-and Python 3.12; anything else must build locally, as described above. The
-workflow fails if a bundled Homebrew library needs a newer macOS than the tag
-claims, or if any binary still links outside the bundle.
+Windows ARM64 and older macOS are **not covered by this locked setup**. Do not
+change Python versions or install random wheels to bypass a failed sync. On an
+Apple Silicon Mac, use a native ARM64 terminal/Python rather than mixing Rosetta
+and ARM64 environments.
+
+The package installed is named **`ur-rtde`** (also normalized as `ur_rtde`), but
+its Python modules are **`rtde_control` and `rtde_receive`**. `import ur_rtde`
+is not an installation check and fails even when the correct package is installed.
+
+#### macOS wheels
+
+`lab4/wheels/` contains single-architecture CPython 3.12 RTDE wheels requiring
+macOS 15+. `uv sync --locked` selects them automatically; Homebrew and a local
+C++ build are not required. The source markers select a local wheel explicitly:
+an older Mac does **not** automatically fall back to a source build.
+
+The wheel-build workflow bundles Boost and checks native library links. Separate
+install CI tests the **full locked Lab 4 environment**, not only the RTDE wheel.
+Intel Macs need the older dependency set because the newer MediaPipe release
+in the original lock did not publish an Intel Mac distribution.
 
 Maintainers, after a successful run: download the artifacts, copy the wheels into
 `lab4/wheels/`, update the `[tool.uv.sources]` entry in `lab4/pyproject.toml` if
@@ -103,16 +126,42 @@ docker compose up -d
 ```
 
 Open <http://localhost:6080/vnc.html>, accept the safety prompts, power on,
-release the brakes, and open PolyScope's Move tab. The compose file publishes
-`29999` and `30001`–`30004` on loopback because host-side `ur_rtde` needs the
-dashboard, the script-upload port (`30003`), and RTDE; if you change the port
-list, keep those. `task3_control.py` connects to
-`localhost` by default; `--host <name or IP>` selects another controller and
-`URSIM_HOST` changes the default, for example `--host 192.168.1.12`. Pass a host
-name or IP address, not a URL, and run only one controller against the robot. The
-simulator and control ports are bound to localhost — leave them private. The
-image is `linux/amd64`, so Apple Silicon depends on Docker emulation, which has
-**not been verified** for this lab.
+release the brakes, and open PolyScope's Move tab. Wait for the robot to be ready;
+`docker compose up -d` returning and VNC opening do **not** prove that the robot
+control services are ready.
+
+Before opening Task 3, run this **read-only, camera-free** check from `lab4`:
+
+```sh
+docker compose ps
+uv run --no-sync python check_setup.py --robot --host 127.0.0.1
+```
+
+It checks the environment, the dashboard (`29999`), script upload (`30003`), RTDE
+(`30004`), and queries robot/safety/program state. It never powers on, uploads a
+program, or moves the arm. Fix any failed check first. `RUNNING` robot mode and
+`NORMAL` safety mode are expected for the lab; a stopped program before **I**
+is normal. The check cannot prove that a later control script will execute.
+
+The compose file also publishes `30001`/`30002`; keep its published ports
+unchanged. After changing Compose ports, recreate the container:
+
+```sh
+docker compose up -d --force-recreate
+uv run python task3_control.py --host 127.0.0.1
+```
+
+Task 3 defaults to `URSIM_HOST` if set, otherwise `localhost`. The explicit IPv4
+host above bypasses stale environment variables and matches Compose's IPv4 bind.
+Use `127.0.0.1` for this local Docker setup, **not** `ursim_cb3` (a Docker-only
+service name), a browser URL, or a Codespaces forwarded address. The script prints
+its target on startup. Run only one control script against the simulator; close
+old Task 3/Lab 2 processes. Ports stay bound to loopback—do not expose them to
+the network.
+
+The image is `linux/amd64`; Apple Silicon depends on Docker Desktop emulation.
+Linux simulator CI does not validate Docker Desktop's emulation, VPN/firewall
+behavior, camera permissions, or a student's VNC session.
 
 When finished:
 
@@ -330,30 +379,75 @@ that the CSV contains a successful trial, and the model cache is not included.
   camera or robot; use PolyScope if you cannot reach the keyboard stop.
 - **`NotImplementedError` in Task 2:** implement `student.elbow_angle()`. Task 3
   stays blocked until it works.
-- **`uv sync` fails while building `ur_rtde` (macOS):** only Macs without a
-  matching wheel get here — the bundled wheels need macOS 15 and Python 3.12.
-  Building from source
-  needs Xcode command line tools (`xcode-select --install`), a `cmake` binary,
-  and Boost with `system`, `thread`, and `program_options`. Homebrew is the usual
-  source for the last two:
-  `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
-  then `brew install cmake boost`. Without Homebrew, install CMake from
-  <https://cmake.org/download/> and a Boost build, then point the build at it:
-  `CMAKE_PREFIX_PATH=/path/to/boost uv sync --locked`.
-- **Task 3 reports `ur_rtde is not installed`:** the environment is out of date.
-  Run `uv sync --locked` in `lab4`, then `uv run python task3_control.py`.
+- **First capture the setup evidence:** run
+  `uv run --no-sync python check_setup.py`; for robot issues add
+  `--robot --host 127.0.0.1`. Send its complete output, the original sync/error
+  output, `docker compose ps`, and the Task 3 controller status—not only the
+  last-action line. No camera image is needed for these diagnostics.
+- **Windows `ur_rtde not found` / Mac `No module named rtde_control`:**
+  distinguish the missing *module* from a failed install command. From `lab4`,
+  run `uv sync --locked` and check its exit status, then the setup check above.
+  Use `uv run python task3_control.py`, not bare `python`. Confirm the printed
+  executable is in `lab4/.venv`, Python is 3.12, and the architecture matches
+  the platform table. `import ur_rtde` is the wrong import name.
+- **`DLL load failed`, `dlopen`, incompatible architecture, or library not found:**
+  the extension may be installed but a native dependency cannot load. Keep the
+  original loader message; reinstalling into another interpreter will not explain
+  it. On Windows, a message naming `VCRUNTIME140`/`MSVCP140` indicates a missing
+  [Microsoft Visual C++ x64 runtime](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist);
+  do not download individual DLLs. On Mac, confirm macOS 15+, architecture, and
+  that sync used the bundled wheel rather than a separately installed package.
+- **Old/stale environment:** for a valid environment with suspect packages, use
+  `uv sync --locked --reinstall`. If `.venv` was copied from another computer,
+  uses another architecture, or is invalid, rename `lab4/.venv` and run
+  `uv sync --locked` to create a new one. Do not delete `student.py` or your report.
+- **Unsupported Mac / source-build failure:** the supplied wheels require
+  macOS 15 and CPython 3.12. The locked source selection does not fall back to
+  compilation. Use a supported machine/environment; a source build requires
+  separate dependency/source configuration and is not the student install path.
 - **Model download/import failure:** read the terminal, confirm
   `uv sync --locked` finished in `lab4`, and check internet access.
-- **Initialize fails:** make sure Docker and URSim are running with the robot
-  powered on and brakes released, stop other Lab 2/4 scripts, and check
-  `URSIM_HOST`. Preview and mapping still work without URSim.
-- **Tracking keeps disabling:** improve lighting and landmark visibility, check
-  processing time and host load. Do not raise the stale timeout to hide a stall.
+- **Connection timeout:** VNC (`6080`) is not RTDE. The setup check must reach
+  **all three** control ports on the same host; a failed port identifies the
+  network/container layer before Python control is attempted. Check Docker Desktop
+  is running, use this lab's Compose file, recreate after port changes, stop the
+  Labs 2–3 stack if ports clash, and check VPN/firewall/security software without
+  disabling security or exposing robot ports publicly.
+  A native “failed to start control script … 5 seconds” error is a different
+  phase from the lab's 60-second HOME-arrival timeout: check robot readiness,
+  dialogs, port `30003`, and competing clients. The 60-second deadline does not
+  bound time spent inside native connection constructors.
+- **“HOME requested” but no motion:** this is the last key request, not a
+  success indication. Read the live controller message and `initialized`/`busy`.
+  Wait for **“At HOME”** before C/E; pressing C/E while busy refuses the action
+  and stops initialization. Dismiss PolyScope dialogs, power on, release brakes,
+  and verify the VNC window is the simulator at the printed target. If already
+  at `HOME_Q`, no visible movement is expected. Tracking loss does not cancel
+  HOME in the current version.
+- **Tracking keeps pausing:** a missing/stale pose pauses following; it resumes
+  automatically on a fresh pose while enabled. Improve lighting and landmark
+  visibility, and check host load. Space/S disarms; E is then required.
 - **App unresponsive:** do not assume the robot stopped. Check PolyScope, stop
   there if needed, then reinitialize and re-enable after restarting.
+
+## Maintainer CI checks
+
+- `.github/workflows/lab4-install.yml`: fresh, wheel-only `uv sync --locked`
+  on Windows x64, Linux x64, and both Mac architectures; real native imports,
+  MediaPipe Tasks API, Task 3 CLI startup, and deterministic tests.
+- `.github/workflows/lab4-ursim.yml`: disposable Ubuntu/Compose URSim; powers on
+  the **simulator only**, starts away from HOME, checks measured HOME/servo motion,
+  tracking pause/resume, watchdog, and explicit stop. Uploads logs on failure.
+
+Both run for Lab 4 pushes/PRs and support manual dispatch. Hosted Windows runners
+already include Visual C++ runtimes, so a pass does not prove bare-Windows DLL
+availability. Neither workflow tests a laptop camera or Docker Desktop networking.
 
 ## References
 
 - [MediaPipe Pose Landmarker](https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker)
 - [OpenCV Python tutorials](https://docs.opencv.org/4.x/d6/d00/tutorial_py_root.html)
 - [ur_rtde control API](https://sdurobotics.gitlab.io/ur_rtde/pages/reference/api.html)
+- [uv project environment selection](https://docs.astral.sh/uv/concepts/projects/run/)
+- [MediaPipe release files and dependencies](https://pypi.org/project/mediapipe/#files)
+- [UR controller interfaces and ports](https://www.universal-robots.com/articles/ur/interface-communication/overview-of-client-interfaces/)

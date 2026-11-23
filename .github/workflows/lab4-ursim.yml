@@ -1,0 +1,79 @@
+name: Lab 4 URSim motion
+
+on:
+  push:
+    paths:
+      - 'lab4/**'
+      - '.github/workflows/lab4-ursim.yml'
+  pull_request:
+    paths:
+      - 'lab4/**'
+      - '.github/workflows/lab4-ursim.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ursim:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: lab4
+        shell: bash
+    env:
+      PYTHONUNBUFFERED: '1'
+      URSIM_HOST: '127.0.0.1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.9"
+          enable-cache: true
+          cache-dependency-glob: lab4/uv.lock
+      - name: Install native host environment
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts
+          uv sync --locked --python 3.12 2>&1 | tee ci-artifacts/install.log
+          uv run python check_setup.py 2>&1 | tee ci-artifacts/environment.log
+      - name: Start disposable compose simulator
+        timeout-minutes: 5
+        run: |
+          set -o pipefail
+          docker compose pull 2>&1 | tee ci-artifacts/pull.log
+          docker compose up -d 2>&1 | tee ci-artifacts/start.log
+      - name: Verify real joint motion and controller gating
+        timeout-minutes: 9
+        env:
+          LAB4_URSIM_CI: '1'
+        run: |
+          set -o pipefail
+          # This is the only step that powers on/releases brakes/moves the simulator.
+          # The script bounds readiness and each assertion; timeout also bounds native calls.
+          timeout --signal=TERM --kill-after=15s 480s \
+            uv run python tests/ursim_smoke.py 2>&1 | tee ci-artifacts/motion.log
+          uv run python check_setup.py --robot --host 127.0.0.1 \
+            2>&1 | tee ci-artifacts/robot-diagnostic.log
+      - name: Collect simulator diagnostics
+        if: always()
+        run: |
+          mkdir -p ci-artifacts
+          docker compose ps -a > ci-artifacts/compose-ps.txt 2>&1 || true
+          docker compose logs --no-color --timestamps > ci-artifacts/compose.log 2>&1 || true
+          container="$(docker compose ps -a -q ursim_cb3)"
+          if [ -n "$container" ]; then
+            docker inspect "$container" > ci-artifacts/container-inspect.json 2>&1 || true
+          fi
+      - name: Remove disposable simulator
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab4-ursim-${{ github.run_id }}-${{ github.run_attempt }}
+          path: lab4/ci-artifacts/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,5 +1,7 @@
 """Task 3 host selection: real CLI parsing, no camera or robot required."""
 
+import builtins
+import runpy
 import unittest
 from unittest.mock import patch
 
@@ -48,6 +50,24 @@ class HostSelectionTests(unittest.TestCase):
         warning = task3_control.demo_warning('192.0.2.5')
         self.assertIn('emergency stop', warning)
         self.assertIn('192.0.2.5', warning)
+
+    def test_rtde_import_failure_preserves_loader_error_and_interpreter(self):
+        original_import = builtins.__import__
+        for failure in (
+            ModuleNotFoundError("No module named 'rtde_control'", name='rtde_control'),
+            ImportError('DLL load failed while importing rtde_control: dependency not found'),
+        ):
+            def importing(name, *args, **kwargs):
+                if name == 'rtde_control':
+                    raise failure
+                return original_import(name, *args, **kwargs)
+
+            with self.subTest(error=str(failure)), \
+                    patch('builtins.__import__', side_effect=importing):
+                with self.assertRaises(ImportError) as error:
+                    runpy.run_path(controller.__file__)
+            self.assertIn(str(failure), str(error.exception))
+            self.assertIn(task3_control.sys.executable, str(error.exception))
 
 
 if __name__ == '__main__':

@@ -1,0 +1,87 @@
+name: Lab4 native install
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "lab4/**"
+      - ".github/workflows/lab4-install.yml"
+      - ".github/workflows/ur-rtde-macos-wheel.yml"
+  pull_request:
+    paths:
+      - "lab4/**"
+      - ".github/workflows/lab4-install.yml"
+      - ".github/workflows/ur-rtde-macos-wheel.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: Python 3.12 / ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: Linux x64
+            machine: x86_64
+          - runner: windows-2025
+            platform: Windows x64
+            machine: AMD64
+          - runner: macos-15
+            platform: macOS ARM64
+            machine: arm64
+          - runner: macos-15-intel
+            platform: macOS Intel
+            machine: x86_64
+    defaults:
+      run:
+        shell: bash
+        working-directory: lab4
+    env:
+      UV_MANAGED_PYTHON: "true"
+      UV_PYTHON: "3.12"
+      EXPECTED_MACHINE: ${{ matrix.machine }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.9"
+          enable-cache: false
+
+      # No pip installs, wheel builds, camera, Docker, or robot connection here.
+      # A fresh checkout must support the same locked uv flow as a student's host.
+      - name: Install the complete locked project from wheels
+        run: uv sync --locked --no-build --no-cache
+
+      - name: Report and check the selected native interpreter
+        run: |
+          uv run --locked python - <<'PY'
+          import os, platform, sys
+          from importlib.metadata import version
+          from pathlib import Path
+
+          print('Python:', sys.version)
+          print('Executable:', sys.executable)
+          print('OS:', platform.platform())
+          print('Machine:', platform.machine())
+          print('macOS:', platform.mac_ver()[0])
+          assert sys.version_info[:2] == (3, 12), sys.version
+          assert platform.machine() == os.environ['EXPECTED_MACHINE'], platform.machine()
+          assert Path(sys.prefix).resolve() == Path('.venv').resolve(), sys.prefix
+          for name in ('ur-rtde', 'mediapipe', 'opencv-contrib-python', 'numpy'):
+              print(f'{name}: {version(name)}')
+          PY
+
+      - name: Check setup without camera or robot access
+        run: uv run --locked python check_setup.py
+
+      - name: Exercise the real Task3 CLI startup imports
+        run: uv run --locked python task3_control.py --help
+
+      - name: Run import and deterministic lab tests without hardware
+        run: uv run --locked python -m unittest discover -s tests -v
