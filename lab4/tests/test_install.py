@@ -38,7 +38,7 @@ class NativeInstallTests(unittest.TestCase):
         receive = importlib.import_module('rtde_receive').RTDEReceiveInterface
         for driver, names in (
             (control, ('moveJ', 'servoJ', 'stopJ', 'servoStop', 'isConnected',
-                       'isProgramRunning', 'getAsyncOperationProgress', 'disconnect')),
+                       'isProgramRunning', 'getAsyncOperationProgressEx', 'disconnect')),
             (receive, ('getActualQ', 'getActualQd', 'isConnected', 'disconnect')),
         ):
             for name in names:

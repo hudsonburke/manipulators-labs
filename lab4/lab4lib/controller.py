@@ -215,6 +215,7 @@ class RobotController:
     def _run(self):
         next_tick = time.monotonic()
         home_deadline = None
+        home_previous_operation = None
         try:
             while True:
                 with self._condition:
@@ -282,6 +283,7 @@ class RobotController:
                         if self._cancelled(epoch):
                             continue
                         self._motion = "home"
+                        home_previous_operation = self._control.getAsyncOperationProgressEx().operationId()
                         if self._control.moveJ(self._home.tolist(), self._speed, 0.5, True) is False:
                             raise RuntimeError("URSim rejected the move to HOME")
                         with self._condition:
@@ -294,9 +296,13 @@ class RobotController:
                     if self._motion == "home":
                         at_home = np.max(np.abs(actual - self._home)) <= 0.01
                         stationary = np.max(np.abs(velocity)) <= 0.02
-                        # Arrival + standstill is the real requirement; the async
-                        # progress counter is not reliable across controller versions.
                         if at_home and stationary:
+                            # Arrival can precede moveJ's thread exit. Wait for
+                            # this command's completion, not a stale idle status.
+                            status = self._control.getAsyncOperationProgressEx()
+                            if (status.operationId() == home_previous_operation
+                                    or status.isAsyncOperationRunning()):
+                                continue
                             with self._condition:
                                 if epoch == self._epoch and not self._closed:
                                     self._motion = None

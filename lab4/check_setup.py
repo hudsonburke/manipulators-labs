@@ -161,9 +161,10 @@ def check_rtde_notices(connection, host, timeout):
                 print(f'{endpoint} RTDE notice (level {body[0]}): {text}')
                 if text == ('SafetySetup has not been confirmed yet, '
                             'therefore no data will be send yet'):
-                    print("FAIL: In PolyScope, manually select 'Confirm Safety Configuration' "
-                          'after reviewing the safety configuration. Dashboard RUNNING/NORMAL '
-                          'does not establish this prerequisite; this diagnostic changes nothing.')
+                    print("FAIL: In PolyScope, load/reload the intended installation and "
+                          "review 'Confirm Safety Configuration' if prompted. Dashboard "
+                          'RUNNING/NORMAL does not establish this prerequisite; '
+                          'this diagnostic changes nothing.')
                     return False
         raise ValueError('RTDE startup notices exceeded 16 frames')
     except (OSError, ConnectionError, ValueError) as exc:

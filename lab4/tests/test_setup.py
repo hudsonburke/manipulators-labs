@@ -185,7 +185,6 @@ class DashboardTests(unittest.TestCase):
         self.assertIn('Robotmode: RUNNING', output)
         self.assertIn('Safetymode: NORMAL', output)
         self.assertIn(warning, output)
-        self.assertIn("manually select 'Confirm Safety Configuration'", output)
 
     def test_healthy_silent_rtde_passes_without_sending(self):
         result, output, _ = self.probe_with_rtde([TimeoutError('no unsolicited bytes')])

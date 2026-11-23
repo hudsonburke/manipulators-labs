@@ -5,6 +5,7 @@ import math
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -22,6 +23,7 @@ class FakeTransport:
         self.program_running = True
         self.finish_home = True
         self.moving = False
+        self.operation_id = 0
         self.reject_home = False
         self.servo_error = False
 
@@ -56,14 +58,18 @@ class FakeControl:
 
     def moveJ(self, q, speed, acceleration, asynchronous):
         self.transport.record("moveJ", q, speed, acceleration, asynchronous)
+        self.transport.operation_id += 1
         self.transport.moving = not self.transport.finish_home
         if self.transport.finish_home:
             self.transport.q = np.array(q)
         return not self.transport.reject_home
 
-    def getAsyncOperationProgress(self):
+    def getAsyncOperationProgressEx(self):
         self.transport.record("async_progress")
-        return 0 if self.transport.moving else -1
+        return SimpleNamespace(
+            operationId=lambda value=self.transport.operation_id: value,
+            isAsyncOperationRunning=lambda value=self.transport.moving: value,
+        )
 
     def servoJ(self, q, speed, acceleration, period, lookahead, gain):
         self.transport.record("servoJ", q, speed, acceleration, period, lookahead, gain)
@@ -168,6 +174,36 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(thread_ids, {self.robot._worker.ident})
         json.dumps(self.robot.snapshot(), allow_nan=False)
 
+    def test_home_handoff_waits_for_async_motion_thread_to_finish(self):
+        self.transport.finish_home = False
+        self.transport.q[2] += 0.2
+        self.robot.initialize()
+        self.until(lambda: bool(self.transport.calls_for("moveJ")))
+        before = len(self.transport.calls_for("actual_q"))
+        # Measured joints may be at rest inside tolerance before moveJ returns.
+        self.transport.q = controller.config.HOME_Q.copy()
+        self.until(lambda: len(self.transport.calls_for("actual_q")) >= before + 3)
+        self.assertTrue(self.robot.snapshot()["busy"])
+        self.assertFalse(self.robot.snapshot()["initialized"])
+        self.target()
+        with self.assertRaises(RuntimeError):
+            self.robot.enable()
+        self.assertEqual(self.transport.calls_for("servoJ"), [])
+        self.transport.moving = False
+        self.until(lambda: self.robot.snapshot()["initialized"])
+        self.robot.enable()
+        self.until(lambda: bool(self.transport.calls_for("servoJ")))
+
+    def test_home_already_at_target_waits_for_its_own_async_completion(self):
+        # Accepted command; its new status has not reached the RTDE client yet.
+        with patch.object(FakeControl, "moveJ", return_value=True):
+            self.robot.initialize()
+            self.until(lambda: len(self.transport.calls_for("actual_q")) >= 3)
+            self.assertTrue(self.robot.snapshot()["busy"])
+            self.assertFalse(self.robot.snapshot()["initialized"])
+            self.transport.operation_id += 1
+            self.until(lambda: self.robot.snapshot()["initialized"])
+
     def test_session_home_is_independent_of_tracking(self):
         session = ControlSession(self.robot)
         self.transport.finish_home = False
@@ -178,6 +214,7 @@ class ControllerTests(unittest.TestCase):
         self.assertTrue(self.robot.snapshot()["busy"])
         self.assertEqual(self.transport.calls_for("stopJ"), [])
         self.transport.q = controller.config.HOME_Q.copy()
+        self.transport.moving = False
         self.until(lambda: self.robot.snapshot()["initialized"])
         self.assertFalse(self.robot.snapshot()["enabled"])
 

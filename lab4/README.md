@@ -348,6 +348,10 @@ communication, and robot response also contribute. Frames are capped at
 640 x 480; camera buffer size is requested but backends may ignore it, so check
 latency rather than assuming the read timestamp is the exposure time.
 
+HOME is ready only after the joints are at rest at `HOME_Q` **and that
+asynchronous move has finished**. Measured arrival alone is insufficient: starting
+servo control while the HOME thread is still active aborts the URScript program.
+
 A separate worker owns the RTDE connection, uses the latest target, smooths
 changes, and limits commanded joint speed. The CB3 UR5 control loop targets
 125 Hz independently of the camera loop, and a normal desktop OS is **not**
@@ -433,7 +437,8 @@ that the CSV contains a successful trial, and the model cache is not included.
   **“Failed to start RTDE data synchronization”** can also occur with an
   unconfirmed safety configuration even when ports connect and the dashboard
   says RUNNING/NORMAL. The read-only check reports the robot's initial RTDE
-  warning; complete **Confirm Safety Configuration** in VNC, then restart Task 3.
+  warning. In VNC, load/reload the intended installation and complete
+  **Confirm Safety Configuration** if prompted, then restart Task 3.
 - **“HOME requested” but no motion:** this is the last key request, not a
   success indication. Read the live controller message and `initialized`/`busy`.
   Wait for **“At HOME”** before C/E; pressing C/E while busy refuses the action
