@@ -348,9 +348,9 @@ communication, and robot response also contribute. Frames are capped at
 640 x 480; camera buffer size is requested but backends may ignore it, so check
 latency rather than assuming the read timestamp is the exposure time.
 
-HOME is ready only after the joints are at rest at `HOME_Q` **and that
-asynchronous move has finished**. Measured arrival alone is insufficient: starting
-servo control while the HOME thread is still active aborts the URScript program.
+HOME is ready only after the joints are at rest at `HOME_Q` and a synchronous
+`stopJ` has released the asynchronous HOME thread's motion ownership. Measured
+arrival alone is insufficient: overlapping HOME and servo control aborts URScript.
 
 A separate worker owns the RTDE connection, uses the latest target, smooths
 changes, and limits commanded joint speed. The CB3 UR5 control loop targets
