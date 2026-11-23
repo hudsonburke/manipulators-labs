@@ -3,6 +3,7 @@
 import contextlib
 import io
 import subprocess
+import struct
 import unittest
 from unittest.mock import Mock, patch
 
@@ -137,6 +138,7 @@ class DashboardTests(unittest.TestCase):
     def test_partial_port_availability_reports_exact_failed_endpoint(self):
         dashboard = self.dashboard()
         rtde = Mock()
+        rtde.recv.side_effect = TimeoutError('no unsolicited bytes')
         dashboard.__enter__ = Mock(return_value=dashboard)
         dashboard.__exit__ = Mock(return_value=False)
         rtde.__enter__ = Mock(return_value=rtde)
@@ -151,6 +153,79 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual([call.args[0] for call in connect.call_args_list],
                          [('robot.example', 29999), ('robot.example', 30003), ('robot.example', 30004)])
         rtde.sendall.assert_not_called()
+
+    def probe_with_rtde(self, chunks):
+        dashboard = self.dashboard()
+        upload = Mock()
+        rtde = Mock()
+        rtde.recv.side_effect = chunks
+        for connection in (dashboard, upload, rtde):
+            connection.__enter__ = Mock(return_value=connection)
+            connection.__exit__ = Mock(return_value=False)
+        output = io.StringIO()
+        with patch.object(check_setup.socket, 'create_connection',
+                          side_effect=[dashboard, upload, rtde]), \
+                contextlib.redirect_stdout(output):
+            result = check_setup.check_robot('robot.example', 0.1)
+        upload.sendall.assert_not_called()
+        upload.send.assert_not_called()
+        rtde.sendall.assert_not_called()
+        rtde.send.assert_not_called()
+        self.assertEqual([call.args[0] for call in dashboard.sendall.call_args_list],
+                         [b'robotmode\n', b'safetymode\n', b'programState\n'])
+        return result, output.getvalue(), rtde
+
+    def test_running_normal_dashboard_does_not_override_unconfirmed_safety(self):
+        warning = ('SafetySetup has not been confirmed yet, '
+                   'therefore no data will be send yet')
+        body = b'\x02' + warning.encode('ascii')
+        frame = struct.pack('!HB', len(body) + 3, 77) + body
+        result, output, _ = self.probe_with_rtde([bytes([byte]) for byte in frame])
+        self.assertFalse(result)
+        self.assertIn('Robotmode: RUNNING', output)
+        self.assertIn('Safetymode: NORMAL', output)
+        self.assertIn(warning, output)
+        self.assertIn("manually select 'Confirm Safety Configuration'", output)
+
+    def test_healthy_silent_rtde_passes_without_sending(self):
+        result, output, _ = self.probe_with_rtde([TimeoutError('no unsolicited bytes')])
+        self.assertTrue(result)
+        self.assertNotIn('FAIL', output)
+
+    def test_other_notice_followed_by_silence_is_not_safety_failure(self):
+        body = b'\x02Other startup notice'
+        frame = struct.pack('!HB', len(body) + 3, 77) + body
+        result, output, _ = self.probe_with_rtde(
+            [bytes([byte]) for byte in frame] + [TimeoutError('no further notices')])
+        self.assertTrue(result)
+        self.assertIn('Other startup notice', output)
+        self.assertNotIn('FAIL', output)
+
+    def test_partial_closed_and_malformed_notices_fail_without_sending(self):
+        cases = (
+            [b'\x00', TimeoutError('partial header')],
+            [b''],
+            [b'\x00', b'\x08', b'M', b'\x02', b''],
+            [b'\x00', b'\x08', b'M', b'\x02', TimeoutError('partial body')],
+            [b'\x00', b'\x02', b'M'],
+            [b'\xff', b'\xff', b'M'],
+            [b'\x00', b'\x03', b'M'],
+            [b'\x00', b'\x05', b'M', b'\x02', b'\xff'],
+        )
+        for chunks in cases:
+            with self.subTest(chunks=chunks):
+                result, output, rtde = self.probe_with_rtde(chunks)
+                self.assertFalse(result)
+                self.assertIn('FAIL robot.example:30004 RTDE startup notice', output)
+                self.assertLessEqual(rtde.recv.call_count, 5)
+
+    def test_continuous_frames_are_bounded(self):
+        # Unknown startup frame kinds do not justify consuming an unbounded stream.
+        frame = [b'\x00', b'\x03', b'X']
+        result, output, rtde = self.probe_with_rtde(frame * 16)
+        self.assertFalse(result)
+        self.assertIn('exceeded 16 frames', output)
+        self.assertEqual(rtde.recv.call_count, 48)
 
 
 if __name__ == '__main__':

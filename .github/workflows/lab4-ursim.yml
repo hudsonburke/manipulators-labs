@@ -38,18 +38,41 @@ jobs:
           mkdir -p ci-artifacts
           uv sync --locked --python 3.12 2>&1 | tee ci-artifacts/install.log
           uv run python check_setup.py 2>&1 | tee ci-artifacts/environment.log
-      - name: Install RTDE transport diagnostics
+      - name: Install CI GUI and RTDE transport tools
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes tcpdump libcap2-bin
+          sudo apt-get install --no-install-recommends --yes tcpdump libcap2-bin tesseract-ocr
           # Run capture as the runner so its PID can be signalled/reaped directly.
           sudo setcap cap_net_raw,cap_net_admin=eip "$(command -v tcpdump)"
+          # Isolated CI dependency: never add VNC automation to student manifests.
+          uv venv --python 3.12 "$RUNNER_TEMP/lab4-vnc"
+          uv pip install --python "$RUNNER_TEMP/lab4-vnc/bin/python" vncdotool==1.4.2
       - name: Start disposable compose simulator
         timeout-minutes: 5
         run: |
           set -o pipefail
           docker compose pull 2>&1 | tee ci-artifacts/pull.log
           docker compose up -d 2>&1 | tee ci-artifacts/start.log
+      - name: Confirm fresh simulator safety through real PolyScope UI
+        timeout-minutes: 4
+        env:
+          LAB4_URSIM_CI: '1'
+        run: |
+          set -o pipefail
+          container="$(docker compose ps -q ursim_cb3)"
+          test -n "$container"
+          # Official CB3 image: Docker-IP:5900, not a new host/public publication.
+          # https://hub.docker.com/r/universalrobots/ursim_cb3
+          # Capture the actual no-password x11vnc invocation/entrypoint as evidence;
+          # do not assume another URSim distribution's password applies.
+          docker exec "$container" sh -c 'cat /entrypoint.sh; printf "\n=== Processes ===\n"; ps -ef' \
+            > ci-artifacts/gui-server.txt
+          container_ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$container")"
+          # Screenshot/OCR locates the exact observed safety dialog and its button.
+          # No guessed coordinates, config files, RTDE workaround, or physical robot.
+          timeout --signal=TERM --kill-after=5s 230s \
+            "$RUNNER_TEMP/lab4-vnc/bin/python" tests/ursim_confirm_safety.py \
+              --container-ip "$container_ip" 2>&1 | tee ci-artifacts/safety-gui.log
       - name: Verify real joint motion and controller gating
         timeout-minutes: 9
         env:
@@ -70,6 +93,7 @@ jobs:
             exit "$status"
           }
           trap stop_capture EXIT
+          # GUI safety confirmation is separate from simulator power/brake initialization.
           # This is the only step that powers on/releases brakes/moves the simulator.
           # The script bounds readiness and each assertion; timeout also bounds native calls.
           timeout --signal=TERM --kill-after=15s 480s \

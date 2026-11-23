@@ -120,6 +120,57 @@ def check_dashboard(connection, host, timeout):
     return ok
 
 
+def check_rtde_notices(connection, host, timeout):
+    """Only listen for bounded startup notices; never negotiate RTDE or send data."""
+    endpoint = f'{host}:30004'
+    deadline = time.monotonic() + timeout
+    consumed = 0
+
+    def read_exact(size, allow_silence=False):
+        data = bytearray()
+        while len(data) < size:
+            remaining = deadline - time.monotonic()
+            try:
+                if remaining <= 0:
+                    raise TimeoutError('RTDE notice deadline exceeded')
+                connection.settimeout(remaining)
+                chunk = connection.recv(size - len(data))
+            except TimeoutError:
+                if allow_silence and not data:
+                    return None
+                raise
+            if not chunk:
+                raise ConnectionError('RTDE closed before a complete startup frame')
+            data.extend(chunk)
+        return data
+
+    try:
+        for _ in range(16):
+            header = read_exact(3, allow_silence=True)
+            if header is None:
+                return True  # A healthy RTDE server need not send unsolicited bytes.
+            length, kind = struct.unpack('!HB', header)
+            if length < 3 or consumed + length > 4096:
+                raise ValueError('RTDE startup frames have invalid length or exceed 4096 bytes')
+            consumed += length
+            body = read_exact(length - 3)
+            if kind == 77:  # Legacy unsolicited TEXT_MESSAGE: level byte, then ASCII.
+                if len(body) < 2:
+                    raise ValueError('RTDE TEXT_MESSAGE has no level/text')
+                text = body[1:].decode('ascii')
+                print(f'{endpoint} RTDE notice (level {body[0]}): {text}')
+                if text == ('SafetySetup has not been confirmed yet, '
+                            'therefore no data will be send yet'):
+                    print("FAIL: In PolyScope, manually select 'Confirm Safety Configuration' "
+                          'after reviewing the safety configuration. Dashboard RUNNING/NORMAL '
+                          'does not establish this prerequisite; this diagnostic changes nothing.')
+                    return False
+        raise ValueError('RTDE startup notices exceeded 16 frames')
+    except (OSError, ConnectionError, ValueError) as exc:
+        print(f'FAIL {endpoint} RTDE startup notice: {type(exc).__name__}: {exc}')
+        return False
+
+
 def check_robot(host, timeout):
     print(f'Read-only robot checks: {host}; timeout {timeout:g}s per connect/line.')
     ok = True
@@ -129,6 +180,8 @@ def check_robot(host, timeout):
                 print(f'OK TCP {host}:{port} ({purpose})')
                 if port == 29999:
                     ok = check_dashboard(connection, host, timeout) and ok
+                elif port == 30004:
+                    ok = check_rtde_notices(connection, host, timeout) and ok
         except OSError as exc:
             print(f'FAIL TCP {host}:{port} ({purpose}): {type(exc).__name__}: {exc}')
             ok = False

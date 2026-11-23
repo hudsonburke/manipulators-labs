@@ -125,10 +125,16 @@ Docker runs **only URSim**. From `lab4`:
 docker compose up -d
 ```
 
-Open <http://localhost:6080/vnc.html>, accept the safety prompts, power on,
-release the brakes, and open PolyScope's Move tab. Wait for the robot to be ready;
-`docker compose up -d` returning and VNC opening do **not** prove that the robot
-control services are ready.
+Open <http://localhost:6080/vnc.html>. On first boot, complete the
+**Confirmation of applied Safety Configuration** dialog by clicking
+**Confirm Safety Configuration**. Then power on, release the brakes, and open
+PolyScope's Move tab. These are separate steps: RUNNING/NORMAL dashboard states
+do **not** prove that the safety-configuration dialog was confirmed.
+
+<img src="../assets/confirm-safety.png" alt="PolyScope safety-configuration dialog with Confirm Safety Configuration button">
+
+Wait for the robot to be ready; `docker compose up -d` returning and VNC opening
+do **not** prove that the robot control services are ready.
 
 Before opening Task 3, run this **read-only, camera-free** check from `lab4`:
 
@@ -405,10 +411,10 @@ that the CSV contains a successful trial, and the model cache is not included.
   macOS 15 and CPython 3.12. The locked source selection does not fall back to
   compilation. Use a supported machine/environment; a source build requires
   separate dependency/source configuration and is not the student install path.
-- **Linux `libEGL.so.1` missing:** MediaPipe loads native image code lazily, so
-  `import mediapipe` alone can succeed before this failure. On Ubuntu/Debian,
-  install the system EGL runtime with `sudo apt-get update` then
-  `sudo apt-get install libegl1`; this is not a Python package or compiler.
+- **Linux `libEGL.so.1` / `libGLESv2.so.2` missing:** MediaPipe loads native
+  image code lazily, so `import mediapipe` alone can succeed before this failure.
+  On Ubuntu/Debian, install the system runtimes with `sudo apt-get update` then
+  `sudo apt-get install libegl1 libgles2`; these are not Python packages or compilers.
 - **Model download/import failure:** read the terminal, confirm
   `uv sync --locked` finished in `lab4`, and check internet access.
 - **Connection timeout:** VNC (`6080`) is not RTDE. The setup check must reach
@@ -421,6 +427,10 @@ that the CSV contains a successful trial, and the model cache is not included.
   phase from the lab's 60-second HOME-arrival timeout: check robot readiness,
   dialogs, port `30003`, and competing clients. The 60-second deadline does not
   bound time spent inside native connection constructors.
+  **“Failed to start RTDE data synchronization”** can also occur with an
+  unconfirmed safety configuration even when ports connect and the dashboard
+  says RUNNING/NORMAL. The read-only check reports the robot's initial RTDE
+  warning; complete **Confirm Safety Configuration** in VNC, then restart Task 3.
 - **“HOME requested” but no motion:** this is the last key request, not a
   success indication. Read the live controller message and `initialized`/`busy`.
   Wait for **“At HOME”** before C/E; pressing C/E while busy refuses the action

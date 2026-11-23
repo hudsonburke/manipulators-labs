@@ -3,6 +3,8 @@
 Run in a disposable simulator only:
     LAB4_URSIM_CI=1 uv run python tests/ursim_smoke.py
 This powers on/releases brakes and moves the simulated robot. check_setup.py does not.
+The CI workflow first confirms the fresh installation through the real PolyScope
+safety dialog; Dashboard RUNNING/NORMAL alone does not confirm that installation.
 The workflow supplies an outer process deadline for native driver calls.
 """
 

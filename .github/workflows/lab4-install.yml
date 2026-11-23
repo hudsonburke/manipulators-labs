@@ -57,7 +57,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libegl1
+          sudo apt-get install --yes --no-install-recommends libegl1 libgles2
 
       # No pip installs, wheel builds, camera, Docker, or robot connection here.
       # A fresh checkout must support the same locked uv flow as a student's host.
