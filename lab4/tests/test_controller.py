@@ -362,7 +362,8 @@ class ControllerTests(unittest.TestCase):
 
     def test_latest_observation_wins_and_inputs_are_copied(self):
         self.initialize()
-        old = time.monotonic()
+        # Consecutive clock calls can tie on Windows; supply a genuinely older frame.
+        old = time.monotonic() - controller.config.TARGET_MAX_AGE / 2
         target = self.target(0.2)
         target[2] += 10
         stale_order = controller.config.HOME_Q.copy()

@@ -53,6 +53,12 @@ jobs:
           version: "0.13.9"
           enable-cache: false
 
+      - name: Install the Linux MediaPipe native runtime
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libegl1
+
       # No pip installs, wheel builds, camera, Docker, or robot connection here.
       # A fresh checkout must support the same locked uv flow as a student's host.
       - name: Install the complete locked project from wheels

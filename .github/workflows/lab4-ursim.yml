@@ -38,6 +38,12 @@ jobs:
           mkdir -p ci-artifacts
           uv sync --locked --python 3.12 2>&1 | tee ci-artifacts/install.log
           uv run python check_setup.py 2>&1 | tee ci-artifacts/environment.log
+      - name: Install RTDE transport diagnostics
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes tcpdump libcap2-bin
+          # Run capture as the runner so its PID can be signalled/reaped directly.
+          sudo setcap cap_net_raw,cap_net_admin=eip "$(command -v tcpdump)"
       - name: Start disposable compose simulator
         timeout-minutes: 5
         run: |
@@ -50,6 +56,20 @@ jobs:
           LAB4_URSIM_CI: '1'
         run: |
           set -o pipefail
+          # Capture server text/setup/START replies that ur_rtde 1.6.5 can discard
+          # silently before its control receive thread starts. No extra RTDE client.
+          timeout --signal=INT --kill-after=5s 500s \
+            tcpdump -i any -nn -s 0 -U -w ci-artifacts/rtde.pcap 'tcp port 30004' \
+              > ci-artifacts/rtde-capture.log 2>&1 &
+          capture_pid=$!
+          stop_capture() {
+            status=$?
+            trap - EXIT
+            kill -TERM "$capture_pid" 2>/dev/null || true
+            wait "$capture_pid" || true
+            exit "$status"
+          }
+          trap stop_capture EXIT
           # This is the only step that powers on/releases brakes/moves the simulator.
           # The script bounds readiness and each assertion; timeout also bounds native calls.
           timeout --signal=TERM --kill-after=15s 480s \
@@ -65,6 +85,28 @@ jobs:
           container="$(docker compose ps -a -q ursim_cb3)"
           if [ -n "$container" ]; then
             docker inspect "$container" > ci-artifacts/container-inspect.json 2>&1 || true
+            # The failed run's compose stdout contained only its startup banner.
+            # Discover controller/PolyScope logs inside the image rather than
+            # assuming one release-specific URControl log location.
+            docker exec "$container" sh -c '
+              printf "=== Container processes ===\n"
+              ps -ef
+              printf "\n=== Controller and PolyScope logs (last 1 MiB per file) ===\n"
+              find /ursim /var/log /tmp -maxdepth 6 -type f \
+                \( -iname "*.log" -o -iname "*.log.*" -o -iname "*.out" \
+                   -o -iname "*.err" -o -name "log_history*" \
+                   -o -name "log_messages*" -o -name "hs_err_pid*" \) \
+                -exec sh -c '"'"'
+                  for path do
+                    printf "\n=== %s ===\n" "$path"
+                    tail -c 1048576 "$path"
+                    printf "\n"
+                  done
+                '"'"' sh {} +
+            ' > ci-artifacts/container-internal.log 2>&1 || true
+            docker exec "$container" sh -c 'ss -tanp || netstat -tanp' \
+              > ci-artifacts/container-connections.txt 2>&1 || true
+            sudo ss -tanp > ci-artifacts/host-connections.txt 2>&1 || true
           fi
       - name: Remove disposable simulator
         if: always()

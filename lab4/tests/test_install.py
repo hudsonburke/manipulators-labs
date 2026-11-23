@@ -25,6 +25,14 @@ class NativeInstallTests(unittest.TestCase):
         self.assertIsNotNone(mp.ImageFormat.SRGB)
         self.assertIsNotNone(mp.tasks.vision.RunningMode.VIDEO)
 
+        # Image construction loads MediaPipe's native library lazily; imports
+        # alone do not catch missing runtime DLLs/shared libraries such as EGL.
+        np = importlib.import_module('numpy')
+        pixels = np.array([[[17, 83, 201], [255, 0, 127]]], dtype=np.uint8)
+        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=pixels)
+        self.assertEqual((image.height, image.width, image.channels), (1, 2, 3))
+        np.testing.assert_array_equal(image.numpy_view(), pixels)
+
     def test_native_rtde_control_and_receive_api_is_available(self):
         control = importlib.import_module('rtde_control').RTDEControlInterface
         receive = importlib.import_module('rtde_receive').RTDEReceiveInterface

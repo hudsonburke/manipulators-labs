@@ -102,10 +102,31 @@ def exercise_motion():
 
     receive = seed_control = robot = None
     try:
-        receive = RTDEReceiveInterface(HOST, config.CONTROL_FREQUENCY)
-        print(f'Initial actual_q: {receive.getActualQ()}', flush=True)
-        print(f'Speed scaling: {receive.getSpeedScaling()}', flush=True)
-        seed_control = RTDEControlInterface(HOST, config.CONTROL_FREQUENCY, CONTROL_FLAGS)
+        def log_feedback(label):
+            try:
+                print(f'[DEBUG-rtde-sync] {label}: '
+                      f'connected={receive.isConnected()}, timestamp={receive.getTimestamp()}, '
+                      f'actual_q={receive.getActualQ()}, actual_qd={receive.getActualQd()}, '
+                      f'robot_mode={receive.getRobotMode()}, safety_mode={receive.getSafetyMode()}, '
+                      f'runtime_state={receive.getRuntimeState()}, '
+                      f'speed_scaling={receive.getSpeedScaling()}, '
+                      f'target_speed_fraction={receive.getTargetSpeedFraction()}', flush=True)
+            except Exception as exc:
+                # Diagnostic getters must not replace the constructor's exception.
+                print(f'[DEBUG-rtde-sync] {label}: feedback diagnostic failed: {exc!r}', flush=True)
+
+        print('[DEBUG-rtde-sync] Opening independent feedback connection', flush=True)
+        receive = RTDEReceiveInterface(HOST, config.CONTROL_FREQUENCY, [], True)
+        log_feedback('before seed control constructor')
+        started = time.monotonic()
+        try:
+            # Verbose does not change protocol/recipes; preserve the production flags.
+            seed_control = RTDEControlInterface(
+                HOST, config.CONTROL_FREQUENCY, CONTROL_FLAGS | RTDEControlInterface.FLAG_VERBOSE)
+        finally:
+            print(f'[DEBUG-rtde-sync] Seed control constructor elapsed: '
+                  f'{time.monotonic() - started:.3f}s', flush=True)
+            log_feedback('after seed control constructor')
         wait_until('seed control program running', seed_control.isProgramRunning, timeout=30)
         seed = np.array(config.HOME_Q, dtype=float)
         seed[2] += 0.22
@@ -222,7 +243,7 @@ def exercise_motion():
                     seed_control.disconnect()
             finally:
                 if receive is not None:
-                    print(f'Final actual_q: {receive.getActualQ()}', flush=True)
+                    log_feedback('final independent feedback')
                     receive.disconnect()
                 with Dashboard() as dashboard:
                     for command in ('robotmode', 'safetymode', 'programState'):

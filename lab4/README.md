@@ -405,6 +405,10 @@ that the CSV contains a successful trial, and the model cache is not included.
   macOS 15 and CPython 3.12. The locked source selection does not fall back to
   compilation. Use a supported machine/environment; a source build requires
   separate dependency/source configuration and is not the student install path.
+- **Linux `libEGL.so.1` missing:** MediaPipe loads native image code lazily, so
+  `import mediapipe` alone can succeed before this failure. On Ubuntu/Debian,
+  install the system EGL runtime with `sudo apt-get update` then
+  `sudo apt-get install libegl1`; this is not a Python package or compiler.
 - **Model download/import failure:** read the terminal, confirm
   `uv sync --locked` finished in `lab4`, and check internet access.
 - **Connection timeout:** VNC (`6080`) is not RTDE. The setup check must reach
