@@ -40,10 +40,11 @@ jobs:
           mkdir -p ci-artifacts
           uv sync --locked --python 3.12 2>&1 | tee ci-artifacts/install.log
           uv run python check_setup.py 2>&1 | tee ci-artifacts/environment.log
-      - name: Install CI GUI tools
+      - name: Install Linux image runtimes and CI GUI tools
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes tesseract-ocr
+          sudo apt-get install --no-install-recommends --yes \
+            libegl1 libgles2 libgl1 libglib2.0-0 tesseract-ocr
           # Isolated CI dependency: never add VNC automation to student manifests.
           uv venv --python 3.12 "$RUNNER_TEMP/lab4-vnc"
           uv pip install --python "$RUNNER_TEMP/lab4-vnc/bin/python" vncdotool==1.4.2
