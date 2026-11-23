@@ -12,15 +12,20 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import time
 
 from PIL import Image
 from vncdotool import api
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from check_setup import check_rtde_notices
+
 
 ARTIFACTS = Path('ci-artifacts')
 TITLE = 'confirmation of applied safety configuration'
 BUTTON = 'confirm safety configuration'
+LABELS = (TITLE, BUTTON, 'not now', 'power off', 'program robot', 'run program')
 
 
 def normalized(text):
@@ -39,7 +44,7 @@ def capture(client, name):
         pixels = io.BytesIO()
         enlarged.save(pixels, format='PNG')
     result = subprocess.run(
-        ['tesseract', 'stdin', 'stdout', '--psm', '11', 'tsv'],
+        ['tesseract', 'stdin', 'stdout', '--psm', '3', 'tsv'],
         input=pixels.getvalue(), capture_output=True, check=True, timeout=10)
     text = result.stdout.decode('utf-8')
     (ARTIFACTS / f'{name}.tsv').write_text(text)
@@ -51,60 +56,68 @@ def capture(client, name):
         groups.setdefault(key, []).append(word)
     lines = []
     for words in groups.values():
-        label = normalized(' '.join(word['text'] for word in words))
-        left = min(int(word['left']) for word in words)
-        top = min(int(word['top']) for word in words)
-        right = max(int(word['left']) + int(word['width']) for word in words)
-        bottom = max(int(word['top']) + int(word['height']) for word in words)
-        lines.append((label, (left, top, right, bottom)))
+        selections = [words]
+        for phrase in LABELS:
+            count = len(phrase.split())
+            for start in range(len(words) - count + 1):
+                selected = words[start:start + count]
+                if normalized(' '.join(word['text'] for word in selected)) == phrase:
+                    selections.append(selected)
+        for selected in selections:
+            label = normalized(' '.join(word['text'] for word in selected))
+            left = min(int(word['left']) for word in selected)
+            top = min(int(word['top']) for word in selected)
+            right = max(int(word['left']) + int(word['width']) for word in selected)
+            bottom = max(int(word['top']) + int(word['height']) for word in selected)
+            if (label, (left, top, right, bottom)) not in lines:
+                lines.append((label, (left, top, right, bottom)))
     print(f'GUI {name}: {[label for label, _ in lines]}', flush=True)
     return lines
 
 
-def confirm(client):
-    # Capture before any input. Startup polling never clicks a guessed coordinate.
-    lines = capture(client, 'safety-initial')
-    deadline = time.monotonic() + 90
+def confirm(client, address):
+    """Load the installation through the observed UI and confirm if requested."""
+    deadline = time.monotonic() + 120
+    dismissed_power_prompt = opened_program = clicked_confirmation = False
+
+    def click(lines, label):
+        boxes = [box for text, box in lines if text == label]
+        if len(boxes) != 1:
+            raise RuntimeError(f'Expected one visible {label!r} button, got {boxes}; no click sent')
+        left, top, right, bottom = boxes[0]
+        x, y = (left + right) // 4, (top + bottom) // 4
+        print(f'Clicking observed {label!r} at ({x}, {y})', flush=True)
+        client.mouseMove(x, y)
+        client.mousePress(1)
+
     observation = 0
-    while True:
-        titles = [box for label, box in lines if label == TITLE]
-        buttons = [box for label, box in lines if label == BUTTON]
-        if len(titles) == len(buttons) == 1:
-            break
-        if time.monotonic() >= deadline:
-            raise RuntimeError('Expected initial safety confirmation dialog not recognized within 90s; '
-                               'inspect safety-*.png/tsv; no click sent')
-        time.sleep(2)
+    while time.monotonic() < deadline:
+        name = 'safety-initial' if observation == 0 else f'safety-step-{observation:02d}'
+        lines = capture(client, name)
+        labels = {text for text, _ in lines}
+        if TITLE in labels and BUTTON in labels and not clicked_confirmation:
+            click(lines, BUTTON)
+            clicked_confirmation = True
+        elif {'not now', 'power off'} <= labels and not dismissed_power_prompt:
+            # The fresh image may show this before loading any installation.
+            # Dismissing it does not power on or bypass the safety confirmation.
+            click(lines, 'not now')
+            dismissed_power_prompt = True
+        elif {'run program', 'program robot'} <= labels and not opened_program:
+            click(lines, 'program robot')
+            opened_program = True
+        elif opened_program or clicked_confirmation:
+            # Verify the real backend prerequisite, not just disappearing OCR text.
+            # This listener sends no RTDE packets and changes no controller state.
+            with socket.create_connection((str(address), 30004), timeout=2) as connection:
+                if check_rtde_notices(connection, str(address), 0.5):
+                    print('PASS: PolyScope installation loaded; RTDE no longer reports '
+                          'unconfirmed safety configuration', flush=True)
+                    return
         observation += 1
-        lines = capture(client, f'safety-wait-{observation:02d}')
-
-    title, button = titles[0], buttons[0]
-    # OCR boxes are in the enlarged image. The real dialog's centered button is
-    # below its title; refuse an unexpected layout rather than clicking elsewhere.
-    if not (title[3] < button[1] and button[1] > 600
-            and abs((title[0] + title[2]) - (button[0] + button[2])) < 160):
-        raise RuntimeError(f'Unexpected safety dialog layout: title={title}, button={button}; no click sent')
-    x, y = (button[0] + button[2]) // 4, (button[1] + button[3]) // 4
-    print(f'Clicking observed "Confirm Safety Configuration" at ({x}, {y})', flush=True)
-    client.mouseMove(x, y)
-    client.mousePress(1)
-
-    # One click only. Require a recognized subsequent PolyScope screen, not just
-    # missing OCR text. A power-off prompt may overlay the main menu; Dashboard
-    # initialization and real RTDE motion remain separate assertions.
-    deadline = time.monotonic() + 20
-    observation = 0
-    while True:
-        lines = capture(client, f'safety-after-{observation:02d}')
-        labels = {label for label, _ in lines}
-        if TITLE not in labels and BUTTON not in labels and {'run program', 'program robot'} <= labels:
-            print('PASS: actual safety dialog dismissed; RTDE/motion readiness still unverified', flush=True)
-            return
-        if time.monotonic() >= deadline:
-            raise RuntimeError('Safety confirmation click did not return to the expected main menu within 20s; '
-                               'inspect safety-after-*.png/tsv; refusing motion')
         time.sleep(1)
-        observation += 1
+    raise RuntimeError('PolyScope did not complete installation/safety setup within 120s; '
+                       'inspect safety-*.png/tsv; refusing motion')
 
 
 def main():
@@ -132,7 +145,7 @@ def main():
             time.sleep(1)
     try:
         with api.connect(f'{address}::5900', password=None, timeout=10) as client:
-            confirm(client)
+            confirm(client, address)
     finally:
         api.shutdown()
 

@@ -125,11 +125,14 @@ Docker runs **only URSim**. From `lab4`:
 docker compose up -d
 ```
 
-Open <http://localhost:6080/vnc.html>. On first boot, complete the
-**Confirmation of applied Safety Configuration** dialog by clicking
-**Confirm Safety Configuration**. Then power on, release the brakes, and open
-PolyScope's Move tab. These are separate steps: RUNNING/NORMAL dashboard states
-do **not** prove that the safety-configuration dialog was confirmed.
+Open <http://localhost:6080/vnc.html>. Choose **Program Robot** to load the
+installation; if an initial **Power off** popup blocks the menu, choose
+**Not now** first (this only postpones power initialization). When the
+**Confirmation of applied Safety Configuration** dialog appears, review it and
+click **Confirm Safety Configuration**. Then initialize power, release the brakes,
+and open PolyScope's Move tab. Loading/confirming the installation and powering
+on are separate prerequisites: RUNNING/NORMAL dashboard states alone do **not**
+prove that the installation was loaded and its safety configuration confirmed.
 
 <img src="../assets/confirm-safety.png" alt="PolyScope safety-configuration dialog with Confirm Safety Configuration button">
 
