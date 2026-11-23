@@ -206,10 +206,11 @@ def positive_timeout(value):
 
 
 def main(argv=None):
+    default_host = '127.0.0.1' if sys.platform == 'win32' else 'localhost'
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--robot', action='store_true', help='also check robot TCP ports and query dashboard state (no motion)')
-    parser.add_argument('--host', default=os.environ.get('URSIM_HOST', 'localhost'),
-                        help='robot hostname/IP (default: $URSIM_HOST, else localhost)')
+    parser.add_argument('--host', default=os.environ.get('URSIM_HOST', default_host),
+                        help=f'robot hostname/IP (default: $URSIM_HOST, else {default_host})')
     parser.add_argument('--timeout', type=positive_timeout, default=2.0,
                         help='seconds per robot connection/reply (default: 2; max: 30)')
     parser.add_argument('--_robot-probe', action='store_true', help=argparse.SUPPRESS)
@@ -236,7 +237,7 @@ def main(argv=None):
                   f'exceeded {budget:g}s total deadline (including DNS).')
             ok = False
     else:
-        print('Robot/camera untouched. Add --robot --host localhost for read-only network/state checks.')
+        print(f'Robot/camera untouched. Add --robot --host {host} for read-only network/state checks.')
     return 0 if ok else 1
 
 

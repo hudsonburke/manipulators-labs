@@ -52,11 +52,12 @@ def demo_warning(host):
 
 
 def main(argv=None):
+    default_host = '127.0.0.1' if sys.platform == 'win32' else 'localhost'
     parser = argparse.ArgumentParser(
         description='Task 3: move a UR controller or URSim with your elbow angle.')
     parser.add_argument('--camera', type=int, default=0, help='camera index (default: 0)')
-    parser.add_argument('--host', default=os.environ.get('URSIM_HOST', 'localhost'),
-                        help='UR controller or URSim host name/IP (default: $URSIM_HOST, else localhost)')
+    parser.add_argument('--host', default=os.environ.get('URSIM_HOST', default_host),
+                        help=f'UR controller or URSim host name/IP (default: $URSIM_HOST, else {default_host})')
     args = parser.parse_args(argv)
     host = args.host.strip()
     if not host or '://' in host or '/' in host:

@@ -241,8 +241,9 @@ docker compose up -d --force-recreate
 uv run python task3_control.py --host 127.0.0.1
 ```
 
-Task 3 defaults to `URSIM_HOST` if set, otherwise `localhost`. The explicit IPv4
-host above bypasses stale environment variables and matches Compose's IPv4 bind.
+Task 3 and the setup checker default to `URSIM_HOST` if set; otherwise native
+Windows uses `127.0.0.1`, and macOS/Linux use `localhost`. The explicit IPv4 host
+above bypasses stale environment variables and matches Compose's IPv4 bind.
 Use `127.0.0.1` for this local Docker setup, **not** `ursim_cb3` (a Docker-only
 service name), a browser URL, or a Codespaces forwarded address. The script prints
 its target on startup. Run only one control script against the simulator; close

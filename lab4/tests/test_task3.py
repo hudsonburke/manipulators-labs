@@ -29,13 +29,24 @@ class HostSelectionTests(unittest.TestCase):
         return created
 
     def test_host_flag_reaches_the_controller(self):
-        self.assertEqual(self.capture_host(['--host', '192.0.2.5']), ['192.0.2.5'])
+        with patch.object(task3_control.sys, 'platform', 'win32'), \
+                patch.dict(task3_control.os.environ, {'URSIM_HOST': 'sim.example'}, clear=True):
+            self.assertEqual(self.capture_host(['--host', '192.0.2.5']), ['192.0.2.5'])
 
     def test_default_host_is_the_local_simulator(self):
-        with patch.dict(task3_control.os.environ, {}, clear=True):
-            self.assertEqual(self.capture_host([]), ['localhost'])
-        with patch.dict(task3_control.os.environ, {'URSIM_HOST': 'sim.example'}):
-            self.assertEqual(self.capture_host([]), ['sim.example'])
+        for platform, expected in (('win32', '127.0.0.1'), ('darwin', 'localhost'),
+                                   ('linux', 'localhost')):
+            with self.subTest(platform=platform), \
+                    patch.object(task3_control.sys, 'platform', platform), \
+                    patch.dict(task3_control.os.environ, {}, clear=True):
+                self.assertEqual(self.capture_host([]), [expected])
+
+    def test_environment_host_overrides_platform_default(self):
+        for platform in ('win32', 'darwin', 'linux'):
+            with self.subTest(platform=platform), \
+                    patch.object(task3_control.sys, 'platform', platform), \
+                    patch.dict(task3_control.os.environ, {'URSIM_HOST': 'sim.example'}, clear=True):
+                self.assertEqual(self.capture_host([]), ['sim.example'])
 
     def test_url_is_rejected_before_talking_to_the_robot(self):
         for value in ('http://192.0.2.5', '192.0.2.5/', ''):

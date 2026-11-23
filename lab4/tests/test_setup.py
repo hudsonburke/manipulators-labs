@@ -27,6 +27,23 @@ class SetupTests(unittest.TestCase):
         connect.assert_not_called()
         run.assert_not_called()
 
+    def test_robot_probe_uses_platform_default_and_preserves_overrides(self):
+        for platform, default in (('win32', '127.0.0.1'), ('darwin', 'localhost'),
+                                  ('linux', 'localhost')):
+            for environment, argv, expected in (
+                ({}, [], default),
+                ({'URSIM_HOST': 'sim.example'}, [], 'sim.example'),
+                ({'URSIM_HOST': 'sim.example'}, ['--host', '127.0.0.1'], '127.0.0.1'),
+            ):
+                with self.subTest(platform=platform, environment=environment, argv=argv), \
+                        patch.object(check_setup.sys, 'platform', platform), \
+                        patch.dict(check_setup.os.environ, environment, clear=True), \
+                        patch.object(check_setup.subprocess, 'run', return_value=Mock(returncode=0)) as run:
+                    code, _ = self.run_cli(['--robot', *argv])
+                self.assertEqual(code, 0)
+                command = run.call_args.args[0]
+                self.assertEqual(command[command.index('--host') + 1], expected)
+
     def test_robot_probe_still_runs_when_environment_fails(self):
         with patch.dict(check_setup.os.environ, {'URSIM_HOST': 'sim.example'}), \
                 patch.object(check_setup.subprocess, 'run', return_value=Mock(returncode=0)) as run:
