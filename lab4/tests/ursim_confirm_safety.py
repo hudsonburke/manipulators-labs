@@ -20,12 +20,14 @@ from vncdotool import api
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from check_setup import check_rtde_notices
+from ursim_smoke import prepare_simulator
 
 
 ARTIFACTS = Path('ci-artifacts')
 TITLE = 'confirmation of applied safety configuration'
 BUTTON = 'confirm safety configuration'
-LABELS = (TITLE, BUTTON, 'not now', 'power off', 'program robot', 'run program')
+LABELS = (TITLE, BUTTON, 'not now', 'power off', 'program robot', 'run program',
+          'go to initialization screen', 'initialize robot', 'ok')
 
 
 def normalized(text):
@@ -79,6 +81,7 @@ def confirm(client, address):
     """Load the installation through the observed UI and confirm if requested."""
     deadline = time.monotonic() + 120
     dismissed_power_prompt = opened_program = clicked_confirmation = False
+    opened_initialization = finished_initialization = False
 
     def click(lines, label):
         boxes = [box for text, box in lines if text == label]
@@ -106,6 +109,15 @@ def confirm(client, address):
         elif {'run program', 'program robot'} <= labels and not opened_program:
             click(lines, 'program robot')
             opened_program = True
+        elif {'go to initialization screen', 'power off'} <= labels and not opened_initialization:
+            click(lines, 'go to initialization screen')
+            opened_initialization = True
+            # This is the same simulator-only power/brake preparation used by
+            # the motion scenario; opening its real UI also loads installation.
+            prepare_simulator()
+        elif {'initialize robot', 'ok'} <= labels and opened_initialization and not finished_initialization:
+            click(lines, 'ok')
+            finished_initialization = True
         elif opened_program or clicked_confirmation:
             # Verify the real backend prerequisite, not just disappearing OCR text.
             # This listener sends no RTDE packets and changes no controller state.

@@ -93,8 +93,8 @@ jobs:
             exit "$status"
           }
           trap stop_capture EXIT
-          # GUI safety confirmation is separate from simulator power/brake initialization.
-          # This is the only step that powers on/releases brakes/moves the simulator.
+          # GUI setup may already power on/release brakes through simulator preparation.
+          # Only this step uploads the control script and commands simulated joint motion.
           # The script bounds readiness and each assertion; timeout also bounds native calls.
           timeout --signal=TERM --kill-after=15s 480s \
             uv run python tests/ursim_smoke.py 2>&1 | tee ci-artifacts/motion.log
