@@ -17,6 +17,7 @@ import logging
 import math
 import os
 from pathlib import Path
+import signal
 import sys
 import time
 import urllib.request
@@ -142,7 +143,7 @@ async def scenario(camera, *, camera_only=False):
     import cv2
     import numpy as np
     from aiohttp import web
-    from playwright.async_api import Error as PlaywrightError, async_playwright
+    from playwright.async_api import async_playwright
     from rtde_receive import RTDEReceiveInterface
 
     import student
@@ -232,14 +233,65 @@ async def scenario(camera, *, camera_only=False):
                 raise AssertionError('Rejected second tab changed owner control state')
             await other.close()
 
-        async with asyncio.timeout(270):
-            playwright = await async_playwright().start()
+        async def launch_camera_browser():
+            nonlocal browser, context
             browser = await playwright.chromium.launch(headless=True, args=[
                 '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
                 f'--use-file-for-fake-video-capture={camera}', '--autoplay-policy=no-user-gesture-required',
             ])
             context = await browser.new_context(permissions=['camera'], accept_downloads=True)
             await context.tracing.start(screenshots=True, snapshots=True, sources=True)
+
+        async def disconnect_and_reconnect():
+            nonlocal browser, context, page
+            await context.tracing.stop(path=str(ARTIFACTS / 'trace-before-disconnect.zip'))
+            cdp = await browser.new_browser_cdp_session()
+            processes = (await cdp.send('SystemInfo.getProcessInfo'))['processInfo']
+            pids = [int(process['id']) for process in processes if process['type'] == 'browser']
+            if len(pids) != 1 or pids[0] <= 1 or pids[0] == os.getpid():
+                raise AssertionError('Cannot identify the owned test browser process safely')
+            if not camera_only:
+                synthetic['angle'] = math.pi / 2 + 0.36
+                await until('actual joints moving before browser disconnect',
+                            lambda: actual()[2] > negative[2] + 0.025)
+            disconnected = asyncio.Event()
+            browser.on('disconnected', lambda *args: disconnected.set())
+            # SIGKILL cannot run pagehide/camera_stop. This is real transport loss,
+            # not a graceful page close or a simulated server-side disarm.
+            os.kill(pids[0], signal.SIGKILL)
+            await asyncio.wait_for(disconnected.wait(), 10)
+            browser = context = page = None
+            print('PASS: owned browser process killed without a graceful Stop action', flush=True)
+            if not camera_only:
+                from ursim_smoke import Dashboard
+                await until('browser disconnect stops actual robot velocity',
+                            lambda: np.max(np.abs(receive.getActualQd())) < 0.02, 10)
+                await stationary('browser disconnect holds actual joints', 1.0)
+                with Dashboard() as dashboard:
+                    await until('disconnect cleanup stops the simulator control program',
+                                lambda: dashboard.command('programState').startswith('STOPPED'), 10)
+
+            await launch_camera_browser()
+            page = await context.new_page()
+            page.set_default_timeout(15000)
+            page.on('pageerror', lambda error: page_errors.append(str(error)))
+            reconnected = Observation('reconnected', wire_log)
+            reconnected.attach(page)
+            await page.goto(origin)
+            await page.get_by_role('button', name='Start camera', exact=True).click()
+            await until('new browser owner obtains real camera preview',
+                        lambda: reconnected.preview_count >= 3 and reconnected.state['tracking'], 30)
+            if (reconnected.robot().get('enabled') or reconnected.state['calibrated']
+                    or reconnected.robot().get('initialized')):
+                raise AssertionError('Reconnect restored old controller/calibration state')
+            if not camera_only:
+                await stationary('reconnect remains disarmed with fresh camera frames', 1.0)
+            await page.get_by_role('button', name='Stop camera', exact=True).click()
+            await page.screenshot(path=str(ARTIFACTS / 'reconnected-disarmed.png'), full_page=True)
+
+        async with asyncio.timeout(270):
+            playwright = await async_playwright().start()
+            await launch_camera_browser()
             page = await context.new_page()
             page.set_default_timeout(15000)
             page.on('pageerror', lambda error: page_errors.append(str(error)))
@@ -283,7 +335,7 @@ async def scenario(camera, *, camera_only=False):
                             lambda: owner.preview_count >= preview_before + 5, 10)
                 await reject_second_tab()
                 await page.screenshot(path=str(ARTIFACTS / 'camera-only.png'), full_page=True)
-                await page.get_by_role('button', name='Stop camera', exact=True).click()
+                await disconnect_and_reconnect()
                 if page_errors:
                     raise AssertionError(f'Browser uncaught errors: {page_errors}')
                 print('PASS: camera-only real Chromium / MediaPipe / stub / evidence / ownership; no robot connections.', flush=True)
@@ -355,38 +407,8 @@ async def scenario(camera, *, camera_only=False):
                 raise AssertionError('Fresh frames rearmed Stop')
             await page.get_by_role('button', name='Enable', exact=True).click()
             await until('explicit Enable restores actual servo motion', lambda: arrived(negative), 20)
-            synthetic['angle'] = math.pi / 2 + 0.36
-            await until('actual joints moving before browser disconnect',
-                        lambda: actual()[2] > negative[2] + 0.025)
             await page.screenshot(path=str(ARTIFACTS / 'enabled.png'), full_page=True)
-            # Crash the renderer: unlike page.close(), this cannot run pagehide's
-            # graceful camera_stop action. Cleanup must handle transport loss.
-            crashed_page, page = page, None
-            cdp = await context.new_cdp_session(crashed_page)
-            async with crashed_page.expect_event('crash', timeout=5000):
-                try:
-                    await asyncio.wait_for(cdp.send('Page.crash'), 5)
-                except (PlaywrightError, TimeoutError):
-                    pass  # The observed crash event, not this exception, is the proof.
-            await until('page disconnect stops actual robot velocity',
-                        lambda: np.max(np.abs(receive.getActualQd())) < 0.02, 10)
-            await stationary('page disconnect holds actual joints', 1.0)
-
-            page = await context.new_page()
-            page.set_default_timeout(15000)
-            page.on('pageerror', lambda error: page_errors.append(str(error)))
-            reconnected = Observation('reconnected', wire_log)
-            reconnected.attach(page)
-            await page.goto(origin)
-            await page.get_by_role('button', name='Start camera', exact=True).click()
-            await until('new browser owner obtains real camera preview',
-                        lambda: reconnected.preview_count >= 3, 30)
-            if (reconnected.robot().get('enabled') or reconnected.state['calibrated']
-                    or reconnected.robot().get('initialized')):
-                raise AssertionError('Reconnect restored old controller/calibration state')
-            await stationary('reconnect remains disarmed with fresh camera frames', 1.0)
-            await page.get_by_role('button', name='Stop camera', exact=True).click()
-            await page.screenshot(path=str(ARTIFACTS / 'reconnected-disarmed.png'), full_page=True)
+            await disconnect_and_reconnect()
             if page_errors:
                 raise AssertionError(f'Browser uncaught errors: {page_errors}')
             print('PASS: real browser camera / MediaPipe / URSim motion scenarios', flush=True)
